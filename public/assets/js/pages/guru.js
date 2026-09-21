@@ -1,23 +1,18 @@
 // guru.js — Modul Guru/Wali Kelas.
 // Fitur: melihat kelas yang diampu, penilaian karakter tap-to-rate,
 // catatan observasi, dan riwayat observasi.
-
 const GuruPages = {
-
   // ========== DASHBOARD GURU ==========
   async renderDashboard(container) {
     Router.setTitle('Beranda guru', 'Pilih kelas untuk memulai penilaian.');
-
     const classes = await DB.getClasses();
     const classArr = DB.toArray(classes).filter(c => c.teacherId === Auth.currentUser.uid);
     const students = await DB.getAllStudents();
     const studentArr = DB.toArray(students);
-
     if (!classArr.length) {
       container.innerHTML = `<div class="card"><p class="text-muted">Anda belum ditugaskan sebagai wali kelas manapun. Hubungi admin untuk mendapatkan akses.</p></div>`;
       return;
     }
-
     const cards = classArr.map(c => {
       const count = studentArr.filter(s => s.classId === c.id).length;
       return `
@@ -33,10 +28,8 @@ const GuruPages = {
           </div>
         </div>`;
     }).join('');
-
     container.innerHTML = `<div class="card-grid">${cards}</div>`;
   },
-
   // ========== PENILAIAN KARAKTER (tap-to-rate) ==========
   async renderAssessment(container, classId) {
     const [classes, charData, settings] = await Promise.all([
@@ -45,14 +38,14 @@ const GuruPages = {
       DB.getSettings()
     ]);
     const cls = classes[classId];
-    if (!cls) { container.innerHTML = '<div class="card"><p class="error-text">Kelas tidak ditemukan.</p></div>'; return; }
-
+    if (!cls) {
+      container.innerHTML = '<div class="card"><p class="error-text">Kelas tidak ditemukan.</p></div>';
+      return;
+    }
     Router.setTitle(`Penilaian ${cls.name}`, `${settings.currentAcademicYear} — Semester ${settings.currentSemester}`);
-
     const studentData = await DB.getStudentsByClass(classId);
     const studentArr = DB.toArray(studentData).sort((a, b) => a.name.localeCompare(b.name));
     const charArr = DB.toArray(charData).filter(c => c.active !== false).sort((a, b) => (a.order || 0) - (b.order || 0));
-
     if (!studentArr.length) {
       container.innerHTML = `<div class="card"><p class="text-muted">Belum ada siswa di kelas ini. Minta admin menambahkan data siswa.</p></div>`;
       return;
@@ -61,7 +54,6 @@ const GuruPages = {
       container.innerHTML = `<div class="card"><p class="text-muted">Belum ada indikator karakter aktif. Minta admin untuk menambahkan indikator.</p></div>`;
       return;
     }
-
     // Fetch existing scores for every student in this period
     const year = settings.currentAcademicYear;
     const sem = settings.currentSemester;
@@ -69,9 +61,12 @@ const GuruPages = {
     for (const s of studentArr) {
       allScores[s.id] = await DB.getAssessments(year, sem, s.id);
     }
-
-    const scoreLabel = { 1: 'Perlu Bimbingan', 2: 'Mulai Berkembang', 3: 'Baik', 4: 'Sangat Baik' };
-
+    const scoreLabel = {
+      1: 'Perlu Bimbingan',
+      2: 'Mulai Berkembang',
+      3: 'Baik',
+      4: 'Sangat Baik'
+    };
     const studentCards = studentArr.map(s => {
       const ratingRows = charArr.map(ch => {
         const existing = allScores[s.id]?.[ch.id]?.score || 0;
@@ -86,7 +81,6 @@ const GuruPages = {
             <div class="rating-options">${btns}</div>
           </div>`;
       }).join('');
-
       return `
         <div class="card assess-card">
           <div class="card-header">
@@ -103,7 +97,6 @@ const GuruPages = {
           ${ratingRows}
         </div>`;
     }).join('');
-
     container.innerHTML = `
       <div class="card" style="margin-bottom:16px">
         <p class="text-muted" style="font-size:13px">Ketuk angka untuk memberi nilai: <strong>1</strong> (Perlu Bimbingan) — <strong>4</strong> (Sangat Baik). Nilai langsung tersimpan ke database.</p>
@@ -111,17 +104,18 @@ const GuruPages = {
       <div class="card-grid">${studentCards}</div>
       ${this._obsModal(charArr)}
     `;
-
     // delegated click handler — tap-to-rate
     container.addEventListener('click', async (e) => {
       const btn = e.target.closest('.rating-btn');
       if (!btn) return;
-
-      const { stu, char, score } = btn.dataset;
+      const {
+        stu,
+        char,
+        score
+      } = btn.dataset;
       const siblings = btn.parentElement.querySelectorAll('.rating-btn');
       siblings.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-
       // simpan ke Firebase
       try {
         await DB.saveAssessment(year, sem, stu, char, score, Auth.currentUser.uid);
@@ -130,7 +124,6 @@ const GuruPages = {
       }
     });
   },
-
   // ========== CATATAN OBSERVASI (per kelas) ==========
   async renderObserveClass(container, classId) {
     const [classes, charData, studentData] = await Promise.all([
@@ -139,24 +132,19 @@ const GuruPages = {
       DB.getStudentsByClass(classId)
     ]);
     const cls = classes[classId];
-    if (!cls) { container.innerHTML = '<div class="card"><p class="error-text">Kelas tidak ditemukan.</p></div>'; return; }
-
+    if (!cls) {
+      container.innerHTML = '<div class="card"><p class="error-text">Kelas tidak ditemukan.</p></div>';
+      return;
+    }
     Router.setTitle(`Catatan observasi — ${cls.name}`, 'Catat perilaku positif atau yang perlu bimbingan.');
-
     const studentArr = DB.toArray(studentData).sort((a, b) => a.name.localeCompare(b.name));
     const charArr = DB.toArray(charData).filter(c => c.active !== false);
-
     // tampilkan form catatan cepat
     const stuOpts = studentArr.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
     const charOpts = charArr.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
-
     // fetch existing observations by this teacher
     const obsData = await DB.getObservationsByTeacher(Auth.currentUser.uid);
-    const obsArr = DB.toArray(obsData)
-      .filter(o => studentArr.some(s => s.id === o.studentId))
-      .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
-      .slice(0, 30); // 30 terbaru
-
+    const obsArr = DB.toArray(obsData).filter(o => studentArr.some(s => s.id === o.studentId)).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)).slice(0, 30); // 30 terbaru
     const obsRows = obsArr.length ? obsArr.map(o => {
       const stu = studentArr.find(s => s.id === o.studentId);
       const ch = charArr.find(c => c.id === o.characterId);
@@ -171,7 +159,6 @@ const GuruPages = {
           <p class="obs-date text-muted">${ch ? ch.name : ''} · ${d}</p>
         </div>`;
     }).join('') : '<p class="text-muted" style="padding:12px 0">Belum ada catatan observasi.</p>';
-
     container.innerHTML = `
       <div style="margin-bottom:16px"><a href="#/guru/classes" class="btn btn-outline"><i class="ph ph-arrow-left"></i> Kembali</a></div>
 
@@ -197,7 +184,6 @@ const GuruPages = {
         <div class="obs-list">${obsRows}</div>
       </div>
     `;
-
     document.getElementById('form-obs-quick').onsubmit = async (e) => {
       e.preventDefault();
       const btn = e.target.querySelector('button[type="submit"]');
@@ -216,11 +202,9 @@ const GuruPages = {
       this.renderObserveClass(container, classId);
     };
   },
-
   // ========== RIWAYAT OBSERVASI GLOBAL ==========
   async renderObservationHistory(container) {
     Router.setTitle('Riwayat observasi', 'Seluruh catatan perilaku yang pernah Anda tulis.');
-
     const [obsData, students, charData] = await Promise.all([
       DB.getObservationsByTeacher(Auth.currentUser.uid),
       DB.getAllStudents(),
@@ -229,12 +213,10 @@ const GuruPages = {
     const obsArr = DB.toArray(obsData).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
     const studentMap = students || {};
     const charMap = charData || {};
-
     if (!obsArr.length) {
       container.innerHTML = '<div class="card"><p class="text-muted">Belum ada catatan observasi. Mulai dari halaman kelas Anda.</p></div>';
       return;
     }
-
     const items = obsArr.map(o => {
       const stu = studentMap[o.studentId];
       const ch = charMap[o.characterId];
@@ -248,31 +230,24 @@ const GuruPages = {
           <p class="obs-date text-muted">${ch ? ch.name : ''} · ${o.date || ''}</p>
         </div>`;
     }).join('');
-
     container.innerHTML = `<div class="card"><div class="obs-list">${items}</div></div>`;
   },
-
   // ========== PENILAIAN AKADEMIK ==========
   async renderAcademicGrades(container) {
     Router.setTitle('Nilai Akademik', 'Input nilai akhir dan capaian kompetensi siswa.');
-
     const [classes, subjects, settings] = await Promise.all([
       DB.getClasses(),
       DB.getSubjects(),
       DB.getSettings()
     ]);
-
     const classArr = DB.toArray(classes);
     const subArr = DB.toArray(subjects).sort((a, b) => (a.order || 0) - (b.order || 0));
-
     if (!classArr.length || !subArr.length) {
       container.innerHTML = `<div class="card"><p class="text-muted">Data kelas atau mata pelajaran belum tersedia.</p></div>`;
       return;
     }
-
     const classOpts = classArr.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
     const subOpts = subArr.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
-
     container.innerHTML = `
       <div class="card" style="margin-bottom:20px">
         <form id="filter-academic" class="inline-form" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
@@ -295,33 +270,29 @@ const GuruPages = {
       </div>
       <div id="academic-container"></div>
     `;
-
     document.getElementById('filter-academic').onsubmit = async (e) => {
       e.preventDefault();
       const classId = document.getElementById('ac-class').value;
       const subjectId = document.getElementById('ac-subject').value;
       if (!classId || !subjectId) return;
-
       const acContainer = document.getElementById('academic-container');
       acContainer.innerHTML = '<div class="loader" style="margin: 20px auto"></div>';
-
       const students = await DB.getStudentsByClass(classId);
       const studentArr = DB.toArray(students).sort((a, b) => a.name.localeCompare(b.name));
-      
       if (!studentArr.length) {
         acContainer.innerHTML = `<div class="card"><p class="text-muted">Belum ada siswa di kelas ini.</p></div>`;
         return;
       }
-
       const year = settings.currentAcademicYear;
       const sem = settings.currentSemester;
-      
       const grades = {};
       for (const s of studentArr) {
         const studentGrades = await DB.getAcademicGrades(year, sem, s.id);
-        grades[s.id] = studentGrades[subjectId] || { score: '', competency: '' };
+        grades[s.id] = studentGrades[subjectId] || {
+          score: '',
+          competency: ''
+        };
       }
-
       const rows = studentArr.map((s, idx) => `
         <div class="card" style="margin-bottom: 12px; padding: 12px;">
           <h4 style="margin-top:0; margin-bottom:12px; font-size:15px">${idx + 1}. ${s.name}</h4>
@@ -337,28 +308,23 @@ const GuruPages = {
           </div>
         </div>
       `).join('');
-
       acContainer.innerHTML = `
         <div style="margin-bottom: 16px;">
           ${rows}
         </div>
         <button id="btn-save-academic" class="btn btn-primary" style="width:100%"><i class="ph ph-floppy-disk"></i> Simpan Semua Nilai</button>
       `;
-
       document.getElementById('btn-save-academic').onclick = async (e) => {
         const btn = e.target;
         btn.disabled = true;
         btn.innerHTML = '<i class="ph ph-spinner"></i> Menyimpan...';
-
         const scores = document.querySelectorAll('.ac-score');
         const comps = document.querySelectorAll('.ac-comp');
-        
         const promises = [];
         for (let i = 0; i < studentArr.length; i++) {
           const stuId = studentArr[i].id;
           const score = scores[i].value;
           const comp = comps[i].value.trim();
-          
           if (score || comp) {
             promises.push(DB.saveAcademicGrade(year, sem, stuId, subjectId, {
               score: score ? parseInt(score) : null,
@@ -367,7 +333,6 @@ const GuruPages = {
             }));
           }
         }
-
         try {
           await Promise.all(promises);
           btn.innerHTML = '<i class="ph ph-check"></i> Tersimpan';
@@ -384,27 +349,21 @@ const GuruPages = {
       };
     };
   },
-
   // ========== DATA TAMBAHAN RAPOR ==========
   async renderAdditionalData(container) {
     Router.setTitle('Data Tambahan', 'Input Kokurikuler, Ekstrakurikuler, Kehadiran, dan Catatan Wali Kelas.');
-
     const [classes, ekskuls, settings] = await Promise.all([
       DB.getClasses(),
       DB.getExtracurriculars(),
       DB.getSettings()
     ]);
-
     const classArr = DB.toArray(classes);
     const eksArr = DB.toArray(ekskuls).sort((a, b) => (a.order || 0) - (b.order || 0));
-
     if (!classArr.length) {
       container.innerHTML = `<div class="card"><p class="text-muted">Data kelas belum tersedia.</p></div>`;
       return;
     }
-
     const classOpts = classArr.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
-
     container.innerHTML = `
       <div class="card" style="margin-bottom:20px">
         <div class="form-group" style="margin-bottom:0">
@@ -418,27 +377,22 @@ const GuruPages = {
       <div id="add-student-container"></div>
       <div id="add-form-container"></div>
     `;
-
     document.getElementById('add-class').onchange = async (e) => {
       const classId = e.target.value;
       const stuContainer = document.getElementById('add-student-container');
       const formContainer = document.getElementById('add-form-container');
       formContainer.innerHTML = '';
-      
       if (!classId) {
         stuContainer.innerHTML = '';
         return;
       }
-
       stuContainer.innerHTML = '<div class="loader" style="margin: 20px auto"></div>';
       const students = await DB.getStudentsByClass(classId);
       const studentArr = DB.toArray(students).sort((a, b) => a.name.localeCompare(b.name));
-      
       if (!studentArr.length) {
         stuContainer.innerHTML = `<div class="card"><p class="text-muted">Belum ada siswa di kelas ini.</p></div>`;
         return;
       }
-
       const stuOpts = studentArr.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
       stuContainer.innerHTML = `
         <div class="card" style="margin-bottom:20px">
@@ -451,26 +405,21 @@ const GuruPages = {
           </div>
         </div>
       `;
-
       document.getElementById('add-student').onchange = async (e) => {
         const studentId = e.target.value;
         if (!studentId) {
           formContainer.innerHTML = '';
           return;
         }
-
         formContainer.innerHTML = '<div class="loader" style="margin: 20px auto"></div>';
-        
         const year = settings.currentAcademicYear;
         const sem = settings.currentSemester;
-
         const [cocu, stuEks, att, note] = await Promise.all([
           DB.getCocurricular(year, sem, studentId),
           DB.getStudentExtracurriculars(year, sem, studentId),
           DB.getAttendance(year, sem, studentId),
           DB.getTeacherNote(year, sem, studentId)
         ]);
-
         const eksList = eksArr.map(e => {
           const selected = stuEks && stuEks[e.id];
           return `
@@ -483,7 +432,6 @@ const GuruPages = {
             </div>
           `;
         }).join('');
-
         formContainer.innerHTML = `
           <div class="card" style="margin-bottom:20px">
             <h3 class="card-title" style="margin-bottom:16px">Kokurikuler</h3>
@@ -524,7 +472,6 @@ const GuruPages = {
 
           <button id="btn-save-additional" class="btn btn-primary" style="width:100%; margin-bottom:40px"><i class="ph ph-floppy-disk"></i> Simpan Data Tambahan</button>
         `;
-
         // Toggle textarea visibility for extracurriculars
         document.querySelectorAll('.chk-eks').forEach(chk => {
           chk.onchange = (e) => {
@@ -532,30 +479,25 @@ const GuruPages = {
             txt.style.display = e.target.checked ? 'block' : 'none';
           };
         });
-
         // Save logic
         document.getElementById('btn-save-additional').onclick = async (e) => {
           const btn = e.target;
           btn.disabled = true;
           btn.innerHTML = '<i class="ph ph-spinner"></i> Menyimpan...';
-
           const pCocu = DB.saveCocurricular(year, sem, studentId, {
             description: document.getElementById('add-cocu').value.trim(),
             updatedBy: Auth.currentUser.uid
           });
-
           const pNote = DB.saveTeacherNote(year, sem, studentId, {
             note: document.getElementById('add-note').value.trim(),
             updatedBy: Auth.currentUser.uid
           });
-
           const pAtt = DB.saveAttendance(year, sem, studentId, {
             sakit: parseInt(document.getElementById('add-sakit').value) || 0,
             izin: parseInt(document.getElementById('add-izin').value) || 0,
             alpa: parseInt(document.getElementById('add-alpa').value) || 0,
             updatedBy: Auth.currentUser.uid
           });
-
           const pEks = [];
           document.querySelectorAll('.chk-eks').forEach(chk => {
             const id = chk.dataset.id;
@@ -569,7 +511,6 @@ const GuruPages = {
               pEks.push(DB.deleteStudentExtracurricular(year, sem, studentId, id));
             }
           });
-
           try {
             await Promise.all([pCocu, pNote, pAtt, ...pEks]);
             btn.innerHTML = '<i class="ph ph-check"></i> Tersimpan';
@@ -587,7 +528,6 @@ const GuruPages = {
       };
     };
   },
-
   // ========== MODAL OBSERVASI (dari halaman penilaian) ==========
   _obsModal(charArr) {
     const charOpts = charArr.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
@@ -615,13 +555,11 @@ const GuruPages = {
       </div>
     </div>`;
   },
-
   _openObsModal(studentId, studentName) {
     document.getElementById('obs-title').innerText = `Catatan — ${studentName}`;
     document.getElementById('obs-stu-id').value = studentId;
     document.getElementById('obs-note').value = '';
     document.getElementById('modal-obs').classList.add('active');
-
     // attach submit only once
     const form = document.getElementById('form-obs-modal');
     form.onsubmit = async (e) => {
@@ -641,12 +579,10 @@ const GuruPages = {
       GuruPages._closeModal('modal-obs');
     };
   },
-
   _closeModal(id) {
     document.getElementById(id).classList.remove('active');
   }
 };
-
 // Route registration
 Router.add('#/guru/classes', c => GuruPages.renderDashboard(c));
 Router.add('#/guru/assess/:id', (c, id) => GuruPages.renderAssessment(c, id));

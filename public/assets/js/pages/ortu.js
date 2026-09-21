@@ -1,13 +1,10 @@
 // ortu.js — Modul Orang Tua / Wali.
 // Dashboard lengkap: Karakter, Akademik, dan Catatan lainnya (dengan tab navigasi).
-
 const OrtuPages = {
   async renderDashboard(container) {
     Router.setTitle('Perkembangan anak', 'Pantau seluruh hasil belajar dan karakter anak Anda.');
-
     const myStudents = await DB.getStudentsByParent(Auth.currentUser.uid);
     const studentArr = DB.toArray(myStudents);
-
     if (!studentArr.length) {
       container.innerHTML = `
         <div class="card" style="margin-top:20px;text-align:center;padding:40px 20px;">
@@ -17,7 +14,6 @@ const OrtuPages = {
         </div>`;
       return;
     }
-
     const [settings, chars, classes, subjectsData, extrasData] = await Promise.all([
       DB.getSettings(),
       DB.getCharacters(),
@@ -30,12 +26,19 @@ const OrtuPages = {
     const exArr = DB.toArray(extrasData);
     const year = settings.currentAcademicYear;
     const sem = settings.currentSemester;
-
-    const scoreLabel = { 4: 'Sangat Baik', 3: 'Baik', 2: 'Mulai Berkembang', 1: 'Perlu Bimbingan' };
-    const scoreColor = { 4: 'var(--primary)', 3: 'var(--success)', 2: 'var(--warning)', 1: 'var(--danger)' };
-
+    const scoreLabel = {
+      4: 'Sangat Baik',
+      3: 'Baik',
+      2: 'Mulai Berkembang',
+      1: 'Perlu Bimbingan'
+    };
+    const scoreColor = {
+      4: 'var(--primary)',
+      3: 'var(--success)',
+      2: 'var(--warning)',
+      1: 'var(--danger)'
+    };
     let html = '';
-
     for (const student of studentArr) {
       const cls = classes[student.classId];
       const [scores, obsData, parentResp, acadGrades, stuExtra, cocurr, attendance, teacherNote] = await Promise.all([
@@ -49,7 +52,6 @@ const OrtuPages = {
         DB.getTeacherNote(year, sem, student.id)
       ]);
       const obsArr = DB.toArray(obsData).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)).slice(0, 15);
-
       // --- TAB 1: KARAKTER & OBSERVASI ---
       const charCards = charArr.map(c => {
         const sc = scores[c.id]?.score;
@@ -66,10 +68,8 @@ const OrtuPages = {
             </div>
           </div>`;
       }).join('');
-
       const vals = charArr.map(c => scores[c.id]?.score).filter(Boolean);
       const avg = vals.length ? (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1) : '-';
-
       const obsHtml = obsArr.length ? obsArr.map(o => {
         const ch = charArr.find(c => c.id === o.characterId);
         return `
@@ -82,7 +82,6 @@ const OrtuPages = {
             <p class="text-muted" style="font-size:12px">${ch ? ch.name : ''}</p>
           </div>`;
       }).join('') : '<p class="text-muted" style="padding:8px 0">Belum ada catatan observasi dari guru.</p>';
-
       // --- TAB 2: AKADEMIK ---
       const acadHtml = subjArr.map(s => {
         const g = acadGrades ? acadGrades[s.id] : null;
@@ -94,20 +93,17 @@ const OrtuPages = {
           </tr>
         `;
       }).join('');
-
       // --- TAB 3: LAIN-LAIN ---
       const extraHtml = DB.toArray(stuExtra || {}).map(e => {
         const baseEx = exArr.find(x => x.id === e.extraId);
         return `<tr><td>${baseEx ? baseEx.name : 'Ekstrakurikuler'}</td><td>${e.score || '-'}</td><td>${e.desc || '-'}</td></tr>`;
       }).join('') || '<tr><td colspan="3" class="text-muted text-center">Belum ada data ekstrakurikuler.</td></tr>';
-
       const cocurrHtml = DB.toArray(cocurr || {}).map(c => `
         <div style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border)">
           <strong>${c.title || 'Proyek'}</strong><br>
           <span style="font-size:13px" class="text-muted">${c.desc || '-'}</span>
         </div>
       `).join('') || '<p class="text-muted">Belum ada catatan proyek.</p>';
-
       const att = attendance || {};
       const attHtml = `
         <table class="table" style="width:100%">
@@ -116,7 +112,6 @@ const OrtuPages = {
           <tr><td>Tanpa Keterangan</td><td><strong>${att.alpa || 0}</strong> hari</td></tr>
         </table>
       `;
-
       html += `
         <section class="student-report" style="margin-bottom:40px">
           <!-- Profil Singkat -->
@@ -206,9 +201,7 @@ const OrtuPages = {
         </section>
       `;
     }
-
     container.innerHTML = html;
-
     container.querySelectorAll('.btn-save-resp').forEach(btn => {
       btn.onclick = async (e) => {
         const studentId = e.target.dataset.stu;
@@ -217,9 +210,15 @@ const OrtuPages = {
         e.target.disabled = true;
         e.target.innerHTML = '<i class="ph ph-spinner"></i> Menyimpan...';
         try {
-          await DB.saveParentResponse(year, sem, studentId, { response: respText, updatedBy: Auth.currentUser.uid });
+          await DB.saveParentResponse(year, sem, studentId, {
+            response: respText,
+            updatedBy: Auth.currentUser.uid
+          });
           e.target.innerHTML = '<i class="ph ph-check"></i> Tersimpan';
-          setTimeout(() => { e.target.disabled = false; e.target.innerHTML = oldHtml; }, 2000);
+          setTimeout(() => {
+            e.target.disabled = false;
+            e.target.innerHTML = oldHtml;
+          }, 2000);
         } catch (err) {
           alert('Gagal menyimpan tanggapan.');
           e.target.disabled = false;
@@ -227,12 +226,10 @@ const OrtuPages = {
         }
       };
     });
-
     for (const student of studentArr) {
       const scores = await DB.getAssessments(year, sem, student.id);
       const labels = charArr.map(c => c.name);
       const values = charArr.map(c => scores[c.id]?.score || 0);
-
       new Chart(document.getElementById(`chart-${student.id}`), {
         type: 'bar',
         data: {
@@ -247,23 +244,39 @@ const OrtuPages = {
         },
         options: {
           responsive: true,
-          scales: { y: { beginAtZero: true, max: 4, ticks: { stepSize: 1 } }, x: { ticks: { font: { size: 10 } } } },
-          plugins: { legend: { display: false } }
+          scales: {
+            y: {
+              beginAtZero: true,
+              max: 4,
+              ticks: {
+                stepSize: 1
+              }
+            },
+            x: {
+              ticks: {
+                font: {
+                  size: 10
+                }
+              }
+            }
+          },
+          plugins: {
+            legend: {
+              display: false
+            }
+          }
         }
       });
     }
   },
-
   switchTab(studentId, tabName) {
     const parent = document.querySelector(`#tab-karakter-${studentId}`).parentElement.parentElement;
     parent.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
     parent.querySelectorAll('.btn-tab').forEach(b => {
       if (b.dataset.target.includes(studentId)) b.classList.remove('active');
     });
-    
     parent.querySelector(`#tab-${tabName}-${studentId}`).classList.remove('hidden');
     parent.querySelector(`[data-target="tab-${tabName}-${studentId}"]`).classList.add('active');
   }
 };
-
 Router.add('#/ortu/dashboard', c => OrtuPages.renderDashboard(c));

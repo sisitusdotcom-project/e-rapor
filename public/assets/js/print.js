@@ -1,15 +1,12 @@
 // print.js — Logika untuk men-generate cetakan rapor
-
 document.addEventListener('DOMContentLoaded', () => {
   const urlParams = new URLSearchParams(window.location.search);
   const studentId = urlParams.get('id');
   const container = document.getElementById('print-container');
-
   if (!studentId) {
     container.innerHTML = '<p style="text-align:center; padding:50px;">Error: ID Siswa tidak ditemukan.</p>';
     return;
   }
-
   // Wait for Firebase to be ready
   const checkDB = setInterval(() => {
     if (typeof DB !== 'undefined' && firebase.auth) {
@@ -24,12 +21,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }, 100);
 });
-
 async function generateReport(studentId, container) {
   try {
     const student = await DB.getStudent(studentId);
     if (!student) throw new Error('Siswa tidak ditemukan');
-
     const [settings, classes, subjectsObj, ekskulsObj, charactersObj] = await Promise.all([
       DB.getSettings(),
       DB.getClasses(),
@@ -37,11 +32,13 @@ async function generateReport(studentId, container) {
       DB.getExtracurriculars(),
       DB.getCharacters()
     ]);
-
-    const cls = classes[student.classId] || { name: '-', phase: '-', teacherId: null };
+    const cls = classes[student.classId] || {
+      name: '-',
+      phase: '-',
+      teacherId: null
+    };
     const year = settings.currentAcademicYear;
     const sem = settings.currentSemester;
-
     // Fetch all related data
     const [academic, cocu, stuEks, att, note, parentResp, chars] = await Promise.all([
       DB.getAcademicGrades(year, sem, studentId),
@@ -52,16 +49,13 @@ async function generateReport(studentId, container) {
       DB.getParentResponse(year, sem, studentId),
       DB.getAssessments(year, sem, studentId)
     ]);
-
     const subjects = DB.toArray(subjectsObj).sort((a, b) => (a.order || 0) - (b.order || 0));
     const ekskuls = DB.toArray(ekskulsObj);
     const characters = DB.toArray(charactersObj).sort((a, b) => (a.order || 0) - (b.order || 0));
-
     // Grouping Subjects
     const getGroupHtml = (groupName, startNo, groupLabel) => {
       const groupSubjects = subjects.filter(s => s.category === groupName);
       if (!groupSubjects.length) return '';
-      
       let html = `
         <tr>
             <td class="text-center" rowspan="${groupSubjects.length + 1}" style="vertical-align: top; padding-top: 6px;">${startNo}.</td>
@@ -70,7 +64,6 @@ async function generateReport(studentId, container) {
             <td class="capaian-box"></td>
         </tr>
       `;
-
       groupSubjects.forEach((sub, idx) => {
         const grade = academic[sub.id] || {};
         html += `
@@ -87,11 +80,12 @@ async function generateReport(studentId, container) {
       });
       return html;
     };
-
     const getGeneralHtml = (startNo) => {
       const generalSubjects = subjects.filter(s => s.category === 'Umum');
-      if (!generalSubjects.length) return { html: '', count: 0 };
-      
+      if (!generalSubjects.length) return {
+        html: '',
+        count: 0
+      };
       let html = '';
       generalSubjects.forEach((sub, idx) => {
         const grade = academic[sub.id] || {};
@@ -108,25 +102,23 @@ async function generateReport(studentId, container) {
           </tr>
         `;
       });
-      return { html, count: generalSubjects.length };
+      return {
+        html,
+        count: generalSubjects.length
+      };
     };
-
     let tableHtml = '';
     let currentNo = 1;
-
     // Agama
     tableHtml += getGroupHtml('Agama', currentNo, 'Pendidikan Agama');
     if (subjects.some(s => s.category === 'Agama')) currentNo++;
-
     // Umum
     const general = getGeneralHtml(currentNo);
     tableHtml += general.html;
     currentNo += general.count;
-
     // Muatan Lokal
     tableHtml += getGroupHtml('Muatan Lokal', currentNo, 'Muatan Lokal');
     if (subjects.some(s => s.category === 'Muatan Lokal')) currentNo++;
-
     // Kemuhammadiyahan (Kekhasan)
     const kekhasanSubjects = subjects.filter(s => s.category === 'Kekhasan');
     kekhasanSubjects.forEach((sub, idx) => {
@@ -144,7 +136,6 @@ async function generateReport(studentId, container) {
         </tr>
       `;
     });
-
     // Ekstrakurikuler
     const myEks = DB.toArray(stuEks);
     let eksHtml = '';
@@ -162,21 +153,23 @@ async function generateReport(studentId, container) {
     } else {
       eksHtml = '<tr><td colspan="3" class="text-center text-muted">Belum ada data ekstrakurikuler</td></tr>';
     }
-
     // Get Headmaster Name
     const kepsekName = settings.kepsekName || 'Dhani Harsyahyadi, S.H.I.';
     const headmasterNBM = settings.kepsekNBM || '';
-
     // Get Wali Kelas Name
     let waliKelasName = '_______________';
     if (cls.teacherId) {
       const teacher = await DB.getUser(cls.teacherId);
       if (teacher && teacher.name) waliKelasName = teacher.name;
     }
-
     // Generate Lampiran Karakter
     let characterRows = '';
-    const scoreLabel = { 4: 'Sangat Baik', 3: 'Baik', 2: 'Mulai Berkembang', 1: 'Perlu Bimbingan' };
+    const scoreLabel = {
+      4: 'Sangat Baik',
+      3: 'Baik',
+      2: 'Mulai Berkembang',
+      1: 'Perlu Bimbingan'
+    };
     characters.forEach((c, idx) => {
       const sc = chars[c.id]?.score;
       characterRows += `
@@ -188,7 +181,6 @@ async function generateReport(studentId, container) {
         </tr>
       `;
     });
-
     const lampiranHtml = `
       <div class="page" style="page-break-before: always; margin-top: 20px;">
         <h2 class="text-center" style="margin-bottom:20px;">LAMPIRAN PERKEMBANGAN KARAKTER</h2>
@@ -208,7 +200,6 @@ async function generateReport(studentId, container) {
         <p style="font-size: 12px; color: #555; margin-top: 10px;">Keterangan Skor:<br>4 = Sangat Baik<br>3 = Baik<br>2 = Mulai Berkembang<br>1 = Perlu Bimbingan</p>
       </div>
     `;
-
     // Render HTML
     container.innerHTML = `
       <div class="print-actions">
@@ -344,9 +335,6 @@ async function generateReport(studentId, container) {
       
       ${lampiranHtml}
     `;
-
-
-
   } catch (err) {
     console.error(err);
     container.innerHTML = '<p style="text-align:center; padding:50px; color:red;">Terjadi kesalahan: ' + err.message + '</p>';

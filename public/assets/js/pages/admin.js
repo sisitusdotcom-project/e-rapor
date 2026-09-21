@@ -1,12 +1,9 @@
 // admin.js — Modul Admin: dashboard ringkasan, CRUD pengguna, kelas, siswa,
 // indikator karakter, dan pengaturan tahun ajaran/semester.
-
 const AdminPages = {
-
   // ========== DASHBOARD ==========
   async renderDashboard(container) {
     Router.setTitle('Dashboard admin', 'Ringkasan data dan pengaturan sistem.');
-
     const [settings, users, classes, chars, students] = await Promise.all([
       DB.getSettings(),
       DB.getAllUsers(),
@@ -14,15 +11,12 @@ const AdminPages = {
       DB.getCharacters(),
       DB.getAllStudents()
     ]);
-
     const userArr = DB.toArray(users);
     const classArr = DB.toArray(classes);
     const charArr = DB.toArray(chars);
     const studentArr = DB.toArray(students);
-
     const guruCount = userArr.filter(u => u.role === 'guru').length;
     const ortuCount = userArr.filter(u => u.role === 'ortu').length;
-
     container.innerHTML = `
       <section class="card-grid" style="margin-bottom:24px">
         <div class="card stat-card">
@@ -71,7 +65,6 @@ const AdminPages = {
         <p class="text-muted" style="font-size:13px">Kelola di menu <strong>Indikator Karakter</strong> pada sidebar.</p>
       </section>
     `;
-
     document.getElementById('form-settings').addEventListener('submit', async (e) => {
       e.preventDefault();
       const btn = e.target.querySelector('button');
@@ -83,17 +76,16 @@ const AdminPages = {
       });
       btn.disabled = false;
       btn.innerHTML = '<i class="ph ph-check"></i> Tersimpan';
-      setTimeout(() => { btn.innerHTML = '<i class="ph ph-floppy-disk"></i> Simpan'; }, 1500);
+      setTimeout(() => {
+        btn.innerHTML = '<i class="ph ph-floppy-disk"></i> Simpan';
+      }, 1500);
     });
   },
-
   // ========== INDIKATOR KARAKTER ==========
   async renderCharacters(container) {
     Router.setTitle('Indikator karakter', 'Aspek karakter yang dinilai guru.');
-
     const chars = await DB.getCharacters();
     const charArr = DB.toArray(chars).sort((a, b) => (a.order || 0) - (b.order || 0));
-
     const rows = charArr.length ? charArr.map(c => `
       <tr>
         <td>${c.order || '-'}</td>
@@ -105,7 +97,6 @@ const AdminPages = {
         </td>
       </tr>
     `).join('') : '<tr><td colspan="4" class="text-center text-muted">Belum ada indikator. Klik "Tambah" untuk memulai.</td></tr>';
-
     container.innerHTML = `
       <div class="card">
         <div class="card-header">
@@ -119,10 +110,8 @@ const AdminPages = {
       </div>
       ${this._charModal()}
     `;
-
     // event: tambah
     document.getElementById('btn-add-char').onclick = () => this._openCharModal(null, charArr.length + 1);
-
     // event: edit
     container.querySelectorAll('[data-edit-char]').forEach(btn => {
       btn.onclick = () => {
@@ -130,7 +119,6 @@ const AdminPages = {
         if (c) this._openCharModal(c);
       };
     });
-
     // event: hapus
     container.querySelectorAll('[data-del-char]').forEach(btn => {
       btn.onclick = async () => {
@@ -139,7 +127,6 @@ const AdminPages = {
         this.renderCharacters(container);
       };
     });
-
     // event: simpan modal
     document.getElementById('form-char').onsubmit = async (e) => {
       e.preventDefault();
@@ -153,7 +140,6 @@ const AdminPages = {
       this.renderCharacters(container);
     };
   },
-
   _charModal() {
     return `
     <div class="modal-overlay" id="modal-char">
@@ -186,7 +172,6 @@ const AdminPages = {
       </div>
     </div>`;
   },
-
   _openCharModal(existing, nextOrder) {
     document.getElementById('char-modal-title').innerText = existing ? 'Edit indikator' : 'Tambah indikator';
     document.getElementById('char-id').value = existing ? existing.id : '';
@@ -195,17 +180,23 @@ const AdminPages = {
     document.getElementById('char-active').value = existing ? String(existing.active !== false) : 'true';
     document.getElementById('modal-char').classList.add('active');
   },
-
   // ========== MANAJEMEN PENGGUNA ==========
   async renderUsers(container) {
     Router.setTitle('Manajemen pengguna', 'Kelola akun guru, kepala sekolah, dan orang tua.');
-
     const users = await DB.getAllUsers();
     const userArr = DB.toArray(users);
-
-    const roleLabel = { admin: 'Admin', guru: 'Guru', kepsek: 'Kepala Sekolah', ortu: 'Orang Tua' };
-    const roleBadge = { admin: 'badge-primary', guru: 'badge-success', kepsek: 'badge-warning', ortu: 'badge-danger' };
-
+    const roleLabel = {
+      admin: 'Admin',
+      guru: 'Guru',
+      kepsek: 'Kepala Sekolah',
+      ortu: 'Orang Tua'
+    };
+    const roleBadge = {
+      admin: 'badge-primary',
+      guru: 'badge-success',
+      kepsek: 'badge-warning',
+      ortu: 'badge-danger'
+    };
     const rows = userArr.length ? userArr.map(u => `
       <tr>
         <td><strong>${u.name}</strong></td>
@@ -216,7 +207,6 @@ const AdminPages = {
         </td>
       </tr>
     `).join('') : '<tr><td colspan="4" class="text-center text-muted">Belum ada pengguna. Buat akun melalui Firebase Auth Console, lalu tambahkan datanya di sini.</td></tr>';
-
     container.innerHTML = `
       <div class="card" style="margin-bottom:16px">
         <p class="text-muted" style="font-size:13px">Untuk <strong>membuat akun baru</strong>, buat user di Firebase Authentication Console terlebih dahulu, lalu daftarkan UID-nya di form di bawah. Langkah ini menjaga keamanan agar password tidak transit melalui frontend.</p>
@@ -233,20 +223,20 @@ const AdminPages = {
       </div>
       ${this._userModal()}
     `;
-
     document.getElementById('btn-add-user').onclick = () => this._openUserModal(null);
-
     container.querySelectorAll('[data-edit-user]').forEach(btn => {
       btn.onclick = () => {
         const u = userArr.find(x => x.id === btn.dataset.editUser);
         if (u) this._openUserModal(u);
       };
     });
-
     document.getElementById('form-user').onsubmit = async (e) => {
       e.preventDefault();
       const uid = document.getElementById('user-uid').value.trim();
-      if (!uid) { alert('UID tidak boleh kosong.'); return; }
+      if (!uid) {
+        alert('UID tidak boleh kosong.');
+        return;
+      }
       await DB.saveUser(uid, {
         name: document.getElementById('user-name').value.trim(),
         email: document.getElementById('user-email').value.trim(),
@@ -256,7 +246,6 @@ const AdminPages = {
       this.renderUsers(container);
     };
   },
-
   _userModal() {
     return `
     <div class="modal-overlay" id="modal-user">
@@ -297,7 +286,6 @@ const AdminPages = {
       </div>
     </div>`;
   },
-
   _openUserModal(existing) {
     document.getElementById('user-modal-title').innerText = existing ? 'Edit pengguna' : 'Daftarkan pengguna';
     const uidField = document.getElementById('user-uid');
@@ -308,11 +296,9 @@ const AdminPages = {
     document.getElementById('user-role').value = existing ? existing.role : 'guru';
     document.getElementById('modal-user').classList.add('active');
   },
-
   // ========== DATA KELAS ==========
   async renderClasses(container) {
     Router.setTitle('Data kelas', 'Kelola kelas dan penugasan wali kelas.');
-
     const [classes, users, students] = await Promise.all([
       DB.getClasses(),
       DB.getAllUsers(),
@@ -321,7 +307,6 @@ const AdminPages = {
     const classArr = DB.toArray(classes);
     const guruArr = DB.toArray(users).filter(u => u.role === 'guru');
     const studentArr = DB.toArray(students);
-
     const rows = classArr.length ? classArr.map(c => {
       const teacher = guruArr.find(g => g.id === c.teacherId);
       const count = studentArr.filter(s => s.classId === c.id).length;
@@ -337,9 +322,7 @@ const AdminPages = {
           </td>
         </tr>`;
     }).join('') : '<tr><td colspan="4" class="text-center text-muted">Belum ada kelas.</td></tr>';
-
     const guruOptions = guruArr.map(g => `<option value="${g.id}">${g.name}</option>`).join('');
-
     container.innerHTML = `
       <div class="card">
         <div class="card-header">
@@ -381,7 +364,6 @@ const AdminPages = {
         </div>
       </div>
     `;
-
     document.getElementById('btn-add-cls').onclick = () => {
       document.getElementById('cls-modal-title').innerText = 'Tambah kelas';
       document.getElementById('cls-id').value = '';
@@ -389,7 +371,6 @@ const AdminPages = {
       document.getElementById('cls-teacher').value = '';
       document.getElementById('modal-cls').classList.add('active');
     };
-
     container.querySelectorAll('[data-edit-cls]').forEach(btn => {
       btn.onclick = () => {
         const c = classArr.find(x => x.id === btn.dataset.editCls);
@@ -401,7 +382,6 @@ const AdminPages = {
         document.getElementById('modal-cls').classList.add('active');
       };
     });
-
     container.querySelectorAll('[data-del-cls]').forEach(btn => {
       btn.onclick = async () => {
         if (!confirm('Hapus kelas ini? Siswa di kelas ini tidak akan terhapus.')) return;
@@ -409,12 +389,12 @@ const AdminPages = {
         this.renderClasses(container);
       };
     });
-
     // Klik "eye" -> navigasi ke daftar siswa kelas itu
     container.querySelectorAll('[data-view-cls]').forEach(btn => {
-      btn.onclick = () => { window.location.hash = `#/admin/students/${btn.dataset.viewCls}`; };
+      btn.onclick = () => {
+        window.location.hash = `#/admin/students/${btn.dataset.viewCls}`;
+      };
     });
-
     document.getElementById('form-cls').onsubmit = async (e) => {
       e.preventDefault();
       const id = document.getElementById('cls-id').value || null;
@@ -426,7 +406,6 @@ const AdminPages = {
       this.renderClasses(container);
     };
   },
-
   // ========== DATA SISWA (per kelas) ==========
   async renderStudents(container, classId) {
     const classes = await DB.getClasses();
@@ -435,16 +414,13 @@ const AdminPages = {
       container.innerHTML = '<div class="card"><p class="error-text">Kelas tidak ditemukan.</p></div>';
       return;
     }
-
     Router.setTitle(`Siswa kelas ${cls.name}`, 'Kelola data siswa dan hubungkan dengan akun orang tua.');
-
     const [studentData, users] = await Promise.all([
       DB.getStudentsByClass(classId),
       DB.getAllUsers()
     ]);
     const studentArr = DB.toArray(studentData);
     const ortuArr = DB.toArray(users).filter(u => u.role === 'ortu');
-
     const rows = studentArr.length ? studentArr.map(s => {
       const parent = ortuArr.find(p => p.id === s.parentId);
       return `
@@ -460,9 +436,7 @@ const AdminPages = {
           </td>
         </tr>`;
     }).join('') : '<tr><td colspan="5" class="text-center text-muted">Belum ada siswa di kelas ini.</td></tr>';
-
     const ortuOpts = ortuArr.map(o => `<option value="${o.id}">${o.name}</option>`).join('');
-
     container.innerHTML = `
       <div style="margin-bottom:16px"><a href="#/admin/classes" class="btn btn-outline"><i class="ph ph-arrow-left"></i> Kembali ke daftar kelas</a></div>
       <div class="card">
@@ -510,7 +484,6 @@ const AdminPages = {
         </div>
       </div>
     `;
-
     document.getElementById('btn-add-stu').onclick = () => {
       document.getElementById('stu-modal-title').innerText = 'Tambah siswa';
       document.getElementById('stu-id').value = '';
@@ -520,7 +493,6 @@ const AdminPages = {
       document.getElementById('stu-parent').value = '';
       document.getElementById('modal-stu').classList.add('active');
     };
-
     container.querySelectorAll('[data-edit-stu]').forEach(btn => {
       btn.onclick = () => {
         const s = studentArr.find(x => x.id === btn.dataset.editStu);
@@ -534,7 +506,6 @@ const AdminPages = {
         document.getElementById('modal-stu').classList.add('active');
       };
     });
-
     container.querySelectorAll('[data-del-stu]').forEach(btn => {
       btn.onclick = async () => {
         if (!confirm('Hapus data siswa ini?')) return;
@@ -542,7 +513,6 @@ const AdminPages = {
         this.renderStudents(container, classId);
       };
     });
-
     document.getElementById('form-stu').onsubmit = async (e) => {
       e.preventDefault();
       const id = document.getElementById('stu-id').value || null;
@@ -557,14 +527,11 @@ const AdminPages = {
       this.renderStudents(container, classId);
     };
   },
-
   // ========== DATA MATA PELAJARAN ==========
   async renderSubjects(container) {
     Router.setTitle('Mata pelajaran', 'Kelola mata pelajaran dan kategorinya.');
-
     const subjects = await DB.getSubjects();
     const subArr = DB.toArray(subjects).sort((a, b) => (a.order || 0) - (b.order || 0));
-
     const categoryLabel = {
       'agama': 'Agama',
       'standar': 'Umum',
@@ -577,7 +544,6 @@ const AdminPages = {
       'lokal': 'badge-warning',
       'kekhasan': 'badge-danger'
     };
-
     const rows = subArr.length ? subArr.map(s => `
       <tr>
         <td>${s.order || '-'}</td>
@@ -589,7 +555,6 @@ const AdminPages = {
         </td>
       </tr>
     `).join('') : '<tr><td colspan="4" class="text-center text-muted">Belum ada mata pelajaran.</td></tr>';
-
     container.innerHTML = `
       <div class="card">
         <div class="card-header">
@@ -603,16 +568,13 @@ const AdminPages = {
       </div>
       ${this._subjectModal()}
     `;
-
     document.getElementById('btn-add-sub').onclick = () => this._openSubjectModal(null, subArr.length + 1);
-
     container.querySelectorAll('[data-edit-sub]').forEach(btn => {
       btn.onclick = () => {
         const s = subArr.find(x => x.id === btn.dataset.editSub);
         if (s) this._openSubjectModal(s);
       };
     });
-
     container.querySelectorAll('[data-del-sub]').forEach(btn => {
       btn.onclick = async () => {
         if (!confirm('Yakin hapus mata pelajaran ini?')) return;
@@ -620,7 +582,6 @@ const AdminPages = {
         this.renderSubjects(container);
       };
     });
-
     document.getElementById('form-sub').onsubmit = async (e) => {
       e.preventDefault();
       const id = document.getElementById('sub-id').value || null;
@@ -633,7 +594,6 @@ const AdminPages = {
       this.renderSubjects(container);
     };
   },
-
   _subjectModal() {
     return `
     <div class="modal-overlay" id="modal-sub">
@@ -671,7 +631,6 @@ const AdminPages = {
       </div>
     </div>`;
   },
-
   _openSubjectModal(existing, nextOrder) {
     document.getElementById('sub-modal-title').innerText = existing ? 'Edit mata pelajaran' : 'Tambah mata pelajaran';
     document.getElementById('sub-id').value = existing ? existing.id : '';
@@ -680,14 +639,11 @@ const AdminPages = {
     document.getElementById('sub-order').value = existing ? existing.order : (nextOrder || 1);
     document.getElementById('modal-sub').classList.add('active');
   },
-
   // ========== DATA EKSTRAKURIKULER ==========
   async renderExtracurriculars(container) {
     Router.setTitle('Ekstrakurikuler', 'Kelola daftar ekstrakurikuler sekolah.');
-
     const ekskuls = await DB.getExtracurriculars();
     const eksArr = DB.toArray(ekskuls).sort((a, b) => (a.order || 0) - (b.order || 0));
-
     const rows = eksArr.length ? eksArr.map(e => `
       <tr>
         <td>${e.order || '-'}</td>
@@ -698,7 +654,6 @@ const AdminPages = {
         </td>
       </tr>
     `).join('') : '<tr><td colspan="3" class="text-center text-muted">Belum ada ekstrakurikuler.</td></tr>';
-
     container.innerHTML = `
       <div class="card">
         <div class="card-header">
@@ -712,16 +667,13 @@ const AdminPages = {
       </div>
       ${this._extracurricularModal()}
     `;
-
     document.getElementById('btn-add-eks').onclick = () => this._openExtracurricularModal(null, eksArr.length + 1);
-
     container.querySelectorAll('[data-edit-eks]').forEach(btn => {
       btn.onclick = () => {
         const e = eksArr.find(x => x.id === btn.dataset.editEks);
         if (e) this._openExtracurricularModal(e);
       };
     });
-
     container.querySelectorAll('[data-del-eks]').forEach(btn => {
       btn.onclick = async () => {
         if (!confirm('Yakin hapus ekstrakurikuler ini?')) return;
@@ -729,7 +681,6 @@ const AdminPages = {
         this.renderExtracurriculars(container);
       };
     });
-
     document.getElementById('form-eks').onsubmit = async (e) => {
       e.preventDefault();
       const id = document.getElementById('eks-id').value || null;
@@ -741,7 +692,6 @@ const AdminPages = {
       this.renderExtracurriculars(container);
     };
   },
-
   _extracurricularModal() {
     return `
     <div class="modal-overlay" id="modal-eks">
@@ -770,7 +720,6 @@ const AdminPages = {
       </div>
     </div>`;
   },
-
   _openExtracurricularModal(existing, nextOrder) {
     document.getElementById('eks-modal-title').innerText = existing ? 'Edit ekstrakurikuler' : 'Tambah ekstrakurikuler';
     document.getElementById('eks-id').value = existing ? existing.id : '';
@@ -778,13 +727,11 @@ const AdminPages = {
     document.getElementById('eks-order').value = existing ? existing.order : (nextOrder || 1);
     document.getElementById('modal-eks').classList.add('active');
   },
-
   // ========== HELPERS ==========
   _closeModal(id) {
     document.getElementById(id).classList.remove('active');
   }
 };
-
 // Route registration
 Router.add('#/admin/characters', c => AdminPages.renderCharacters(c));
 Router.add('#/admin/users', c => AdminPages.renderUsers(c));
