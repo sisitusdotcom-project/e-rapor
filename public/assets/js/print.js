@@ -336,7 +336,7 @@ async function generateReport(studentId, container) {
       ${lampiranHtml}
     `;
   } catch (err) {
-    console.error(err);
+    
     container.innerHTML = '<p style="text-align:center; padding:50px; color:red;">Terjadi kesalahan: ' + err.message + '</p>';
   }
 }

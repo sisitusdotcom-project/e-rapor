@@ -120,7 +120,7 @@ const GuruPages = {
       try {
         await DB.saveAssessment(year, sem, stu, char, score, Auth.currentUser.uid);
       } catch (err) {
-        console.error('Gagal simpan:', err);
+        
       }
     });
   },
@@ -341,7 +341,7 @@ const GuruPages = {
             btn.innerHTML = '<i class="ph ph-floppy-disk"></i> Simpan Semua Nilai';
           }, 2000);
         } catch (err) {
-          console.error(err);
+          
           alert('Gagal menyimpan nilai.');
           btn.disabled = false;
           btn.innerHTML = '<i class="ph ph-floppy-disk"></i> Simpan Semua Nilai';
@@ -519,7 +519,7 @@ const GuruPages = {
               btn.innerHTML = '<i class="ph ph-floppy-disk"></i> Simpan Data Tambahan';
             }, 2000);
           } catch (err) {
-            console.error(err);
+            
             alert('Gagal menyimpan data.');
             btn.disabled = false;
             btn.innerHTML = '<i class="ph ph-floppy-disk"></i> Simpan Data Tambahan';
@@ -581,7 +581,131 @@ const GuruPages = {
   },
   _closeModal(id) {
     document.getElementById(id).classList.remove('active');
-  }
+  },
+
+  // ========== INPUT EKSTRAKURIKULER (Khusus Guru Pembina) ==========
+  async renderEkskulInput(container, eksId) {
+    const [ekskuls, classes, settings] = await Promise.all([
+      DB.getExtracurriculars(),
+      DB.getClasses(),
+      DB.getSettings()
+    ]);
+    
+    const eks = ekskuls[eksId];
+    if (!eks || eks.teacherId !== Auth.currentUser.uid) {
+      container.innerHTML = '<div class="card"><p class="error-text">Ekstrakurikuler tidak ditemukan atau Anda tidak memiliki akses.</p></div>';
+      return;
+    }
+    
+    Router.setTitle(`Nilai Ekskul: ${eks.name}`, 'Pilih kelas untuk menginput nilai siswa.');
+    
+    const classArr = DB.toArray(classes);
+    const classOpts = classArr.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+    
+    container.innerHTML = `
+      <div style="margin-bottom:16px"><a href="#/dashboard" class="btn btn-outline"><i class="ph ph-arrow-left"></i> Kembali</a></div>
+      <div class="card" style="margin-bottom:20px">
+        <form id="filter-eks" class="inline-form" style="display:flex;gap:12px;align-items:flex-end">
+          <div class="form-group" style="margin-bottom:0;flex:1">
+            <label>Pilih Kelas</label>
+            <select id="eks-class" required>
+              <option value="">— Pilih Kelas —</option>
+              ${classOpts}
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary"><i class="ph ph-magnifying-glass"></i> Tampilkan</button>
+        </form>
+      </div>
+      <div id="eks-container"></div>
+    `;
+    
+    document.getElementById('filter-eks').onsubmit = async (e) => {
+      e.preventDefault();
+      const classId = document.getElementById('eks-class').value;
+      if (!classId) return;
+      
+      const eksCont = document.getElementById('eks-container');
+      eksCont.innerHTML = '<div class="loader" style="margin: 20px auto"></div>';
+      
+      const students = await DB.getStudentsByClass(classId);
+      const studentArr = DB.toArray(students).sort((a, b) => a.name.localeCompare(b.name));
+      
+      if (!studentArr.length) {
+        eksCont.innerHTML = `<div class="card"><p class="text-muted">Belum ada siswa di kelas ini.</p></div>`;
+        return;
+      }
+      
+      const year = settings.currentAcademicYear;
+      const sem = settings.currentSemester;
+      
+      const sEksData = {};
+      for (const s of studentArr) {
+        const dt = await DB.getStudentExtracurriculars(year, sem, s.id);
+        sEksData[s.id] = dt[eks.id] || { score: '', description: '' };
+      }
+      
+      const rows = studentArr.map((s, idx) => `
+        <div class="card" style="margin-bottom: 12px; padding: 12px;">
+          <h4 style="margin-top:0; margin-bottom:12px; font-size:15px">${idx + 1}. ${s.name}</h4>
+          <div style="display:flex; gap:16px; flex-wrap:wrap">
+            <div class="form-group" style="flex: 0 0 120px; margin-bottom:0">
+              <label>Nilai (A/B/C/D)</label>
+              <select class="input-score" data-stu="${s.id}">
+                <option value="">—</option>
+                <option value="A" ${sEksData[s.id].score === 'A' ? 'selected' : ''}>A (Sangat Baik)</option>
+                <option value="B" ${sEksData[s.id].score === 'B' ? 'selected' : ''}>B (Baik)</option>
+                <option value="C" ${sEksData[s.id].score === 'C' ? 'selected' : ''}>C (Cukup)</option>
+                <option value="D" ${sEksData[s.id].score === 'D' ? 'selected' : ''}>D (Kurang)</option>
+              </select>
+            </div>
+            <div class="form-group" style="flex: 1; margin-bottom:0">
+              <label>Keterangan</label>
+              <textarea rows="2" class="input-desc" data-stu="${s.id}">${sEksData[s.id].description || ''}</textarea>
+            </div>
+          </div>
+        </div>
+      `).join('');
+      
+      eksCont.innerHTML = `
+        <form id="form-save-eks">
+          ${rows}
+          <div style="text-align:right; margin-top:20px; position:sticky; bottom:20px; z-index:100;">
+            <button type="submit" class="btn btn-primary" style="box-shadow: 0 4px 12px rgba(0,0,0,0.15)"><i class="ph ph-floppy-disk"></i> Simpan Semua Nilai</button>
+          </div>
+        </form>
+      `;
+      
+      document.getElementById('form-save-eks').onsubmit = async (ev) => {
+        ev.preventDefault();
+        const btn = ev.target.querySelector('button[type="submit"]');
+        btn.innerHTML = '<i class="ph ph-spinner ph-spin"></i> Menyimpan...';
+        btn.disabled = true;
+        
+        try {
+          const scores = document.querySelectorAll('.input-score');
+          const descs = document.querySelectorAll('.input-desc');
+          
+          for (let i = 0; i < scores.length; i++) {
+            const stu = scores[i].dataset.stu;
+            const score = scores[i].value;
+            const desc = descs[i].value;
+            
+            if (score || desc) {
+              await DB.saveStudentExtracurricular(year, sem, stu, eks.id, { score, description: desc });
+            } else {
+              await DB.deleteStudentExtracurricular(year, sem, stu, eks.id);
+            }
+          }
+          alert('Berhasil menyimpan nilai ekstrakurikuler!');
+        } catch (err) {
+          alert('Gagal menyimpan: ' + err.message);
+        } finally {
+          btn.innerHTML = '<i class="ph ph-floppy-disk"></i> Simpan Semua Nilai';
+          btn.disabled = false;
+        }
+      };
+    };
+  },
 };
 // Route registration
 Router.add('#/guru/classes', c => GuruPages.renderDashboard(c));
@@ -590,3 +714,4 @@ Router.add('#/guru/academic', c => GuruPages.renderAcademicGrades(c));
 Router.add('#/guru/additional', c => GuruPages.renderAdditionalData(c));
 Router.add('#/guru/observe/:id', (c, id) => GuruPages.renderObserveClass(c, id));
 Router.add('#/guru/observations', c => GuruPages.renderObservationHistory(c));
+Router.add('#/guru/ekskul/:id', (c, eksId) => GuruPages.renderEkskulInput(c, eksId));

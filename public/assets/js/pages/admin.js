@@ -182,130 +182,166 @@ const AdminPages = {
   },
   // ========== MANAJEMEN PENGGUNA ==========
   async renderUsers(container) {
-    Router.setTitle('Manajemen pengguna', 'Kelola akun guru, kepala sekolah, dan orang tua.');
+    Router.setTitle('Kelola Pengguna', 'Tambah, edit, dan atur peran pengguna sistem.');
     const users = await DB.getAllUsers();
-    const userArr = DB.toArray(users);
-    const roleLabel = {
-      admin: 'Admin',
-      guru: 'Guru',
-      kepsek: 'Kepala Sekolah',
-      ortu: 'Orang Tua'
+    let userArr = DB.toArray(users);
+    
+    const renderTable = () => {
+      const q = (document.getElementById('search-user')?.value || '').toLowerCase();
+      const roleFilter = document.getElementById('filter-role')?.value || '';
+      
+      const filtered = userArr.filter(u => {
+        const matchSearch = (u.name || '').toLowerCase().includes(q) || (u.username || '').toLowerCase().includes(q) || (u.email || '').toLowerCase().includes(q);
+        const matchRole = roleFilter ? u.role === roleFilter : true;
+        return matchSearch && matchRole;
+      });
+      
+      const rows = filtered.length ? filtered.map(u => `
+        <tr>
+          <td><strong>${u.name}</strong><br><small class="text-muted">${u.email || '-'}</small></td>
+          <td>${u.username}</td>
+          <td><span class="badge ${u.role === 'admin' ? 'badge-primary' : u.role === 'guru' ? 'badge-warning' : u.role === 'kepsek' ? 'badge-success' : 'badge-outline'}">${u.role}</span></td>
+          <td class="action-cell">
+            <button class="btn btn-outline btn-sm" data-edit-usr="${u.id}"><i class="ph ph-pencil-simple"></i></button>
+            <button class="btn btn-danger btn-sm" data-del-usr="${u.id}"><i class="ph ph-trash"></i></button>
+          </td>
+        </tr>
+      `).join('') : '<tr><td colspan="4" class="text-center text-muted">Tidak ada pengguna ditemukan.</td></tr>';
+      
+      const tbody = container.querySelector('#tbody-users');
+      if (tbody) tbody.innerHTML = rows;
+      
+      // Bind events for dynamically rendered rows
+      container.querySelectorAll('[data-edit-usr]').forEach(btn => {
+        btn.onclick = () => {
+          const u = userArr.find(x => x.id === btn.dataset.editUsr);
+          if (!u) return;
+          document.getElementById('usr-modal-title').innerText = 'Edit pengguna';
+          document.getElementById('usr-id').value = u.id;
+          document.getElementById('usr-name').value = u.name;
+          document.getElementById('usr-email').value = u.email || '';
+          document.getElementById('usr-username').value = u.username;
+          document.getElementById('usr-password').value = '';
+          document.getElementById('usr-password').placeholder = '(Kosongkan jika tidak diubah)';
+          document.getElementById('usr-role').value = u.role;
+          document.getElementById('usr-password').removeAttribute('required');
+          document.getElementById('modal-usr').classList.add('active');
+        };
+      });
+      container.querySelectorAll('[data-del-usr]').forEach(btn => {
+        btn.onclick = async () => {
+          if (!confirm('Yakin menghapus pengguna ini?')) return;
+          await DB.deleteUser(btn.dataset.delUsr);
+          this.renderUsers(container);
+        };
+      });
     };
-    const roleBadge = {
-      admin: 'badge-primary',
-      guru: 'badge-success',
-      kepsek: 'badge-warning',
-      ortu: 'badge-danger'
-    };
-    const rows = userArr.length ? userArr.map(u => `
-      <tr>
-        <td><strong>${u.name}</strong></td>
-        <td>${u.email || '-'}</td>
-        <td><span class="badge ${roleBadge[u.role] || 'badge-primary'}">${roleLabel[u.role] || u.role}</span></td>
-        <td class="action-cell">
-          <button class="btn btn-outline btn-sm" data-edit-user="${u.id}"><i class="ph ph-pencil-simple"></i></button>
-        </td>
-      </tr>
-    `).join('') : '<tr><td colspan="4" class="text-center text-muted">Belum ada pengguna. Buat akun melalui Firebase Auth Console, lalu tambahkan datanya di sini.</td></tr>';
+
     container.innerHTML = `
       <div class="card" style="margin-bottom:16px">
-        <p class="text-muted" style="font-size:13px">Untuk <strong>membuat akun baru</strong>, buat user di Firebase Authentication Console terlebih dahulu, lalu daftarkan UID-nya di form di bawah. Langkah ini menjaga keamanan agar password tidak transit melalui frontend.</p>
+        <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center; justify-content:space-between">
+          <div style="display:flex; gap:12px; flex:1; min-width:250px">
+            <div class="search-box" style="flex:1; position:relative">
+              <i class="ph ph-magnifying-glass" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted)"></i>
+              <input type="text" id="search-user" placeholder="Cari nama, username..." style="width:100%; padding-left:36px; height:40px; border-radius:8px; border:1px solid var(--border)">
+            </div>
+            <select id="filter-role" style="height:40px; border-radius:8px; border:1px solid var(--border); padding:0 12px">
+              <option value="">Semua Peran</option>
+              <option value="admin">Admin</option>
+              <option value="guru">Guru</option>
+              <option value="kepsek">Kepsek</option>
+              <option value="ortu">Orang Tua</option>
+            </select>
+          </div>
+          <button class="btn btn-primary" id="btn-add-usr"><i class="ph ph-plus"></i> Tambah Pengguna</button>
+        </div>
       </div>
       <div class="card">
-        <div class="card-header">
-          <h3 class="card-title">Daftar pengguna</h3>
-          <button class="btn btn-primary" id="btn-add-user"><i class="ph ph-plus"></i> Daftarkan</button>
-        </div>
         <div class="table-responsive">
-          <table class="table"><thead><tr><th>Nama</th><th>Email</th><th>Role</th><th style="width:80px">Aksi</th></tr></thead>
-          <tbody>${rows}</tbody></table>
+          <table class="table"><thead><tr><th>Nama / Email</th><th>Username</th><th>Peran</th><th style="width:100px">Aksi</th></tr></thead>
+          <tbody id="tbody-users"></tbody></table>
         </div>
       </div>
-      ${this._userModal()}
+      <div class="modal-overlay" id="modal-usr">
+        <div class="modal">
+          <div class="modal-header">
+            <h3 class="modal-title" id="usr-modal-title">Tambah pengguna</h3>
+            <button class="btn-icon" onclick="AdminPages._closeModal('modal-usr')"><i class="ph ph-x"></i></button>
+          </div>
+          <form id="form-usr">
+            <div class="modal-body">
+              <input type="hidden" id="usr-id">
+              <div class="form-group"><label>Nama Lengkap</label><input id="usr-name" required></div>
+              <div class="form-group"><label>Email (opsional)</label><input type="email" id="usr-email"></div>
+              <div class="form-group"><label>Username</label><input id="usr-username" required></div>
+              <div class="form-group"><label>Password</label><input type="password" id="usr-password" required minlength="6"></div>
+              <div class="form-group"><label>Peran</label><select id="usr-role" required><option value="guru">Guru</option><option value="ortu">Orang Tua</option><option value="admin">Admin</option><option value="kepsek">Kepsek</option></select></div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-outline" onclick="AdminPages._closeModal('modal-usr')">Batal</button>
+              <button type="submit" class="btn btn-primary">Simpan</button>
+            </div>
+          </form>
+        </div>
+      </div>
     `;
-    document.getElementById('btn-add-user').onclick = () => this._openUserModal(null);
-    container.querySelectorAll('[data-edit-user]').forEach(btn => {
-      btn.onclick = () => {
-        const u = userArr.find(x => x.id === btn.dataset.editUser);
-        if (u) this._openUserModal(u);
-      };
-    });
-    document.getElementById('form-user').onsubmit = async (e) => {
+    
+    // Initial render
+    renderTable();
+
+    // Event listeners for search and filter
+    document.getElementById('search-user').addEventListener('input', renderTable);
+    document.getElementById('filter-role').addEventListener('change', renderTable);
+
+    document.getElementById('btn-add-usr').onclick = () => {
+      document.getElementById('usr-modal-title').innerText = 'Tambah pengguna';
+      document.getElementById('usr-id').value = '';
+      document.getElementById('usr-name').value = '';
+      document.getElementById('usr-email').value = '';
+      document.getElementById('usr-username').value = '';
+      document.getElementById('usr-password').value = '';
+      document.getElementById('usr-password').placeholder = '';
+      document.getElementById('usr-role').value = 'guru';
+      document.getElementById('usr-password').setAttribute('required', 'true');
+      document.getElementById('modal-usr').classList.add('active');
+    };
+
+    document.getElementById('form-usr').onsubmit = async (e) => {
       e.preventDefault();
-      const uid = document.getElementById('user-uid').value.trim();
-      if (!uid) {
-        alert('UID tidak boleh kosong.');
-        return;
+      const btn = e.target.querySelector('button[type="submit"]');
+      btn.disabled = true;
+      btn.innerHTML = '<i class="ph ph-spinner ph-spin"></i> Menyimpan...';
+      const id = document.getElementById('usr-id').value || null;
+      const pwd = document.getElementById('usr-password').value;
+      const data = {
+        name: document.getElementById('usr-name').value.trim(),
+        email: document.getElementById('usr-email').value.trim(),
+        username: document.getElementById('usr-username').value.trim(),
+        role: document.getElementById('usr-role').value
+      };
+      if (pwd) data.password = pwd;
+      try {
+        await DB.saveUser(id, data);
+        this._closeModal('modal-usr');
+        this.renderUsers(container);
+      } catch (err) {
+        alert(err.message || 'Gagal menyimpan');
+        btn.disabled = false;
+        btn.innerHTML = 'Simpan';
       }
-      await DB.saveUser(uid, {
-        name: document.getElementById('user-name').value.trim(),
-        email: document.getElementById('user-email').value.trim(),
-        role: document.getElementById('user-role').value
-      });
-      this._closeModal('modal-user');
-      this.renderUsers(container);
     };
   },
-  _userModal() {
-    return `
-    <div class="modal-overlay" id="modal-user">
-      <div class="modal">
-        <div class="modal-header">
-          <h3 class="modal-title" id="user-modal-title">Daftarkan pengguna</h3>
-          <button class="btn-icon" onclick="AdminPages._closeModal('modal-user')"><i class="ph ph-x"></i></button>
-        </div>
-        <form id="form-user">
-          <div class="modal-body">
-            <div class="form-group">
-              <label>UID Firebase Auth</label>
-              <input id="user-uid" required placeholder="Paste UID dari Firebase Console">
-            </div>
-            <div class="form-group">
-              <label>Nama lengkap</label>
-              <input id="user-name" required placeholder="Contoh: Bu Siti Nurjanah">
-            </div>
-            <div class="form-group">
-              <label>Email</label>
-              <input id="user-email" type="email" placeholder="contoh: siti@sekolah.id">
-            </div>
-            <div class="form-group">
-              <label>Role</label>
-              <select id="user-role">
-                <option value="guru">Guru / Wali Kelas</option>
-                <option value="kepsek">Kepala Sekolah</option>
-                <option value="ortu">Orang Tua / Wali</option>
-                <option value="admin">Admin</option>
-              </select>
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-outline" onclick="AdminPages._closeModal('modal-user')">Batal</button>
-            <button type="submit" class="btn btn-primary">Simpan</button>
-          </div>
-        </form>
-      </div>
-    </div>`;
-  },
-  _openUserModal(existing) {
-    document.getElementById('user-modal-title').innerText = existing ? 'Edit pengguna' : 'Daftarkan pengguna';
-    const uidField = document.getElementById('user-uid');
-    uidField.value = existing ? existing.id : '';
-    uidField.readOnly = !!existing; // prevent changing UID on edit
-    document.getElementById('user-name').value = existing ? existing.name : '';
-    document.getElementById('user-email').value = existing ? (existing.email || '') : '';
-    document.getElementById('user-role').value = existing ? existing.role : 'guru';
-    document.getElementById('modal-user').classList.add('active');
-  },
-  // ========== DATA KELAS ==========
   async renderClasses(container) {
-    Router.setTitle('Data kelas', 'Kelola kelas dan penugasan wali kelas.');
-    const [classes, users, students] = await Promise.all([
+    Router.setTitle('Data kelas', 'Kelola kelas dan penugasan wali kelas serta guru mapel.');
+    const [classes, users, students, subjects] = await Promise.all([
       DB.getClasses(),
       DB.getAllUsers(),
-      DB.getAllStudents()
+      DB.getAllStudents(),
+      DB.getSubjects()
     ]);
     const classArr = DB.toArray(classes);
     const guruArr = DB.toArray(users).filter(u => u.role === 'guru');
+    const subArr = DB.toArray(subjects).sort((a, b) => (a.order || 0) - (b.order || 0));
     const studentArr = DB.toArray(students);
     const rows = classArr.length ? classArr.map(c => {
       const teacher = guruArr.find(g => g.id === c.teacherId);
@@ -315,14 +351,28 @@ const AdminPages = {
           <td><strong>${c.name}</strong></td>
           <td>${teacher ? teacher.name : '<span class="text-muted">Belum ditugaskan</span>'}</td>
           <td>${count} siswa</td>
-          <td class="action-cell">
-            <button class="btn btn-outline btn-sm" data-edit-cls="${c.id}"><i class="ph ph-pencil-simple"></i></button>
-            <button class="btn btn-outline btn-sm" data-view-cls="${c.id}"><i class="ph ph-eye"></i></button>
-            <button class="btn btn-danger btn-sm" data-del-cls="${c.id}"><i class="ph ph-trash"></i></button>
+          <td class="action-cell" style="width:200px">
+            <button class="btn btn-outline btn-sm" data-mapel-cls="${c.id}" title="Atur Guru Mapel"><i class="ph ph-books"></i> Mapel</button>
+            <button class="btn btn-outline btn-sm" data-edit-cls="${c.id}" title="Edit Kelas"><i class="ph ph-pencil-simple"></i></button>
+            <button class="btn btn-outline btn-sm" data-view-cls="${c.id}" title="Lihat Siswa"><i class="ph ph-eye"></i></button>
+            <button class="btn btn-danger btn-sm" data-del-cls="${c.id}" title="Hapus"><i class="ph ph-trash"></i></button>
           </td>
         </tr>`;
     }).join('') : '<tr><td colspan="4" class="text-center text-muted">Belum ada kelas.</td></tr>';
+    
     const guruOptions = guruArr.map(g => `<option value="${g.id}">${g.name}</option>`).join('');
+    
+    // Generate subjects dropdowns for mapel modal
+    const mapelRows = subArr.map(sub => `
+      <div class="form-group" style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; border-bottom:1px solid #eee; padding-bottom:8px">
+        <label style="margin:0; width:40%">${sub.name}</label>
+        <select class="mapel-select" data-subject-id="${sub.id}" style="width:60%">
+          <option value="">— Default (Wali Kelas) —</option>
+          ${guruOptions}
+        </select>
+      </div>
+    `).join('');
+
     container.innerHTML = `
       <div class="card">
         <div class="card-header">
@@ -330,7 +380,7 @@ const AdminPages = {
           <button class="btn btn-primary" id="btn-add-cls"><i class="ph ph-plus"></i> Tambah</button>
         </div>
         <div class="table-responsive">
-          <table class="table"><thead><tr><th>Nama Kelas</th><th>Wali Kelas</th><th>Jumlah Siswa</th><th style="width:130px">Aksi</th></tr></thead>
+          <table class="table"><thead><tr><th>Nama Kelas</th><th>Wali Kelas</th><th>Jumlah Siswa</th><th style="width:220px">Aksi</th></tr></thead>
           <tbody>${rows}</tbody></table>
         </div>
       </div>
@@ -363,7 +413,28 @@ const AdminPages = {
           </form>
         </div>
       </div>
+
+      <div class="modal-overlay" id="modal-mapel">
+        <div class="modal" style="max-width:500px">
+          <div class="modal-header">
+            <h3 class="modal-title" id="mapel-modal-title">Atur Guru Mata Pelajaran</h3>
+            <button class="btn-icon" onclick="AdminPages._closeModal('modal-mapel')"><i class="ph ph-x"></i></button>
+          </div>
+          <form id="form-mapel">
+            <div class="modal-body" style="max-height:60vh; overflow-y:auto">
+              <input type="hidden" id="mapel-cls-id">
+              <p class="text-muted" style="margin-bottom:20px; font-size:13px">Tentukan guru khusus untuk mata pelajaran tertentu. Jika dikosongkan, hak akses pengisian nilai akan dikembalikan ke Wali Kelas.</p>
+              ${mapelRows}
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-outline" onclick="AdminPages._closeModal('modal-mapel')">Batal</button>
+              <button type="submit" class="btn btn-primary">Simpan Penugasan</button>
+            </div>
+          </form>
+        </div>
+      </div>
     `;
+
     document.getElementById('btn-add-cls').onclick = () => {
       document.getElementById('cls-modal-title').innerText = 'Tambah kelas';
       document.getElementById('cls-id').value = '';
@@ -371,6 +442,7 @@ const AdminPages = {
       document.getElementById('cls-teacher').value = '';
       document.getElementById('modal-cls').classList.add('active');
     };
+    
     container.querySelectorAll('[data-edit-cls]').forEach(btn => {
       btn.onclick = () => {
         const c = classArr.find(x => x.id === btn.dataset.editCls);
@@ -382,6 +454,25 @@ const AdminPages = {
         document.getElementById('modal-cls').classList.add('active');
       };
     });
+
+    container.querySelectorAll('[data-mapel-cls]').forEach(btn => {
+      btn.onclick = () => {
+        const c = classArr.find(x => x.id === btn.dataset.mapelCls);
+        if (!c) return;
+        document.getElementById('mapel-modal-title').innerText = `Guru Mapel - Kelas ${c.name}`;
+        document.getElementById('mapel-cls-id').value = c.id;
+        
+        // Reset and prefill selects
+        const selects = document.querySelectorAll('.mapel-select');
+        selects.forEach(sel => {
+          const subId = sel.dataset.subjectId;
+          sel.value = (c.subjectTeachers && c.subjectTeachers[subId]) ? c.subjectTeachers[subId] : '';
+        });
+        
+        document.getElementById('modal-mapel').classList.add('active');
+      };
+    });
+
     container.querySelectorAll('[data-del-cls]').forEach(btn => {
       btn.onclick = async () => {
         if (!confirm('Hapus kelas ini? Siswa di kelas ini tidak akan terhapus.')) return;
@@ -389,12 +480,13 @@ const AdminPages = {
         this.renderClasses(container);
       };
     });
-    // Klik "eye" -> navigasi ke daftar siswa kelas itu
+    
     container.querySelectorAll('[data-view-cls]').forEach(btn => {
       btn.onclick = () => {
         window.location.hash = `#/admin/students/${btn.dataset.viewCls}`;
       };
     });
+
     document.getElementById('form-cls').onsubmit = async (e) => {
       e.preventDefault();
       const id = document.getElementById('cls-id').value || null;
@@ -403,6 +495,23 @@ const AdminPages = {
         teacherId: document.getElementById('cls-teacher').value || null
       });
       this._closeModal('modal-cls');
+      this.renderClasses(container);
+    };
+
+    document.getElementById('form-mapel').onsubmit = async (e) => {
+      e.preventDefault();
+      const id = document.getElementById('mapel-cls-id').value;
+      if (!id) return;
+      
+      const subjectTeachers = {};
+      document.querySelectorAll('.mapel-select').forEach(sel => {
+        if (sel.value) {
+          subjectTeachers[sel.dataset.subjectId] = sel.value;
+        }
+      });
+      
+      await DB.saveClassSubjectTeachers(id, subjectTeachers);
+      this._closeModal('modal-mapel');
       this.renderClasses(container);
     };
   },
@@ -419,37 +528,88 @@ const AdminPages = {
       DB.getStudentsByClass(classId),
       DB.getAllUsers()
     ]);
-    const studentArr = DB.toArray(studentData);
+    const studentArr = DB.toArray(studentData).sort((a,b) => a.name.localeCompare(b.name));
     const ortuArr = DB.toArray(users).filter(u => u.role === 'ortu');
-    const rows = studentArr.length ? studentArr.map(s => {
-      const parent = ortuArr.find(p => p.id === s.parentId);
-      return `
-        <tr>
-          <td>${s.nis || '-'}</td>
-          <td><strong>${s.name}</strong></td>
-          <td>${s.gender === 'L' ? 'Laki-laki' : s.gender === 'P' ? 'Perempuan' : '-'}</td>
-          <td>${parent ? `<span class="badge badge-success"><i class="ph ph-link"></i> ${parent.name}</span>` : '<span class="badge badge-warning" style="background:#fff3cd;color:#856404"><i class="ph ph-link-break"></i> Belum ditautkan</span>'}</td>
-          <td class="action-cell">
-            <button class="btn btn-outline btn-sm" onclick="window.open('print.html?id=${s.id}', '_blank')" title="Cetak Rapor"><i class="ph ph-printer"></i></button>
-            <button class="btn btn-outline btn-sm" data-edit-stu="${s.id}"><i class="ph ph-pencil-simple"></i></button>
-            <button class="btn btn-danger btn-sm" data-del-stu="${s.id}"><i class="ph ph-trash"></i></button>
-          </td>
-        </tr>`;
-    }).join('') : '<tr><td colspan="5" class="text-center text-muted">Belum ada siswa di kelas ini.</td></tr>';
-    const ortuOpts = ortuArr.map(o => `<option value="${o.id}">${o.name}</option>`).join('');
+    
+    const renderTable = () => {
+      const q = (document.getElementById('search-student')?.value || '').toLowerCase();
+      const genderFilter = document.getElementById('filter-gender')?.value || '';
+      
+      const filtered = studentArr.filter(s => {
+        const matchSearch = (s.name || '').toLowerCase().includes(q) || (s.nis || '').toLowerCase().includes(q);
+        const matchGender = genderFilter ? s.gender === genderFilter : true;
+        return matchSearch && matchGender;
+      });
+      
+      const rows = filtered.length ? filtered.map(s => {
+        const parent = ortuArr.find(p => p.id === s.parentId);
+        return `
+          <tr>
+            <td>${s.nis || '-'}</td>
+            <td><strong>${s.name}</strong></td>
+            <td>${s.gender === 'L' ? 'Laki-laki' : s.gender === 'P' ? 'Perempuan' : '-'}</td>
+            <td>${parent ? parent.name : '<span class="text-muted">Belum tertaut</span>'}</td>
+            <td class="action-cell">
+              <button class="btn btn-outline btn-sm" data-edit-stu="${s.id}"><i class="ph ph-pencil-simple"></i></button>
+              <button class="btn btn-danger btn-sm" data-del-stu="${s.id}"><i class="ph ph-trash"></i></button>
+            </td>
+          </tr>
+        `;
+      }).join('') : '<tr><td colspan="5" class="text-center text-muted">Tidak ada data siswa ditemukan.</td></tr>';
+      
+      const tbody = container.querySelector('#tbody-students');
+      if (tbody) tbody.innerHTML = rows;
+
+      // Bind events
+      container.querySelectorAll('[data-edit-stu]').forEach(btn => {
+        btn.onclick = () => {
+          const s = studentArr.find(x => x.id === btn.dataset.editStu);
+          if (!s) return;
+          document.getElementById('stu-modal-title').innerText = 'Edit siswa';
+          document.getElementById('stu-id').value = s.id;
+          document.getElementById('stu-nis').value = s.nis || '';
+          document.getElementById('stu-nisn').value = s.nisn || '';
+          document.getElementById('stu-name').value = s.name;
+          document.getElementById('stu-gender').value = s.gender || 'L';
+          document.getElementById('stu-parent').value = s.parentId || '';
+          document.getElementById('modal-stu').classList.add('active');
+        };
+      });
+      container.querySelectorAll('[data-del-stu]').forEach(btn => {
+        btn.onclick = async () => {
+          if (!confirm('Yakin menghapus siswa ini?')) return;
+          await DB.deleteStudent(btn.dataset.delStu);
+          this.renderStudents(container, classId);
+        };
+      });
+    };
+
+    const ortuOptions = ortuArr.map(p => `<option value="${p.id}">${p.name} (${p.username})</option>`).join('');
+    
     container.innerHTML = `
-      <div style="margin-bottom:16px"><a href="#/admin/classes" class="btn btn-outline"><i class="ph ph-arrow-left"></i> Kembali ke daftar kelas</a></div>
-      <div class="card">
-        <div class="card-header">
-          <h3 class="card-title">Daftar siswa</h3>
-          <button class="btn btn-primary" id="btn-add-stu"><i class="ph ph-plus"></i> Tambah</button>
-        </div>
-        <div class="table-responsive">
-          <table class="table"><thead><tr><th>NIS</th><th>Nama</th><th>Gender</th><th>Orang Tua</th><th style="width:100px">Aksi</th></tr></thead>
-          <tbody>${rows}</tbody></table>
+      <div style="margin-bottom:16px"><a href="#/admin/classes" class="btn btn-outline"><i class="ph ph-arrow-left"></i> Kembali ke kelas</a></div>
+      <div class="card" style="margin-bottom:16px">
+        <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center; justify-content:space-between">
+          <div style="display:flex; gap:12px; flex:1; min-width:250px">
+            <div class="search-box" style="flex:1; position:relative">
+              <i class="ph ph-magnifying-glass" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted)"></i>
+              <input type="text" id="search-student" placeholder="Cari nama atau NIS..." style="width:100%; padding-left:36px; height:40px; border-radius:8px; border:1px solid var(--border)">
+            </div>
+            <select id="filter-gender" style="height:40px; border-radius:8px; border:1px solid var(--border); padding:0 12px">
+              <option value="">Semua L/P</option>
+              <option value="L">Laki-laki</option>
+              <option value="P">Perempuan</option>
+            </select>
+          </div>
+          <button class="btn btn-primary" id="btn-add-stu"><i class="ph ph-plus"></i> Tambah Siswa</button>
         </div>
       </div>
-
+      <div class="card">
+        <div class="table-responsive">
+          <table class="table"><thead><tr><th>NIS</th><th>Nama Siswa</th><th>L/P</th><th>Orang Tua</th><th style="width:100px">Aksi</th></tr></thead>
+          <tbody id="tbody-students"></tbody></table>
+        </div>
+      </div>
       <div class="modal-overlay" id="modal-stu">
         <div class="modal">
           <div class="modal-header">
@@ -459,22 +619,13 @@ const AdminPages = {
           <form id="form-stu">
             <div class="modal-body">
               <input type="hidden" id="stu-id">
-              <div class="form-group">
-                <label>Nama lengkap</label>
-                <input id="stu-name" required placeholder="Contoh: Ahmad Fauzi">
+              <div style="display:flex; gap:12px">
+                <div class="form-group" style="flex:1"><label>NIS</label><input id="stu-nis" required></div>
+                <div class="form-group" style="flex:1"><label>NISN</label><input id="stu-nisn"></div>
               </div>
-              <div class="form-group">
-                <label>NIS</label>
-                <input id="stu-nis" placeholder="Contoh: 20260014">
-              </div>
-              <div class="form-group">
-                <label>Jenis kelamin</label>
-                <select id="stu-gender"><option value="L">Laki-laki</option><option value="P">Perempuan</option></select>
-              </div>
-              <div class="form-group">
-                <label>Orang tua / wali (opsional)</label>
-                <select id="stu-parent"><option value="">— Tidak ditautkan —</option>${ortuOpts}</select>
-              </div>
+              <div class="form-group"><label>Nama Lengkap</label><input id="stu-name" required></div>
+              <div class="form-group"><label>Jenis Kelamin</label><select id="stu-gender"><option value="L">Laki-laki</option><option value="P">Perempuan</option></select></div>
+              <div class="form-group"><label>Tautkan Orang Tua</label><select id="stu-parent"><option value="">— Tidak ditautkan —</option>${ortuOptions}</select></div>
             </div>
             <div class="modal-footer">
               <button type="button" class="btn btn-outline" onclick="AdminPages._closeModal('modal-stu')">Batal</button>
@@ -484,52 +635,40 @@ const AdminPages = {
         </div>
       </div>
     `;
+
+    renderTable();
+
+    document.getElementById('search-student').addEventListener('input', renderTable);
+    document.getElementById('filter-gender').addEventListener('change', renderTable);
+
     document.getElementById('btn-add-stu').onclick = () => {
       document.getElementById('stu-modal-title').innerText = 'Tambah siswa';
       document.getElementById('stu-id').value = '';
-      document.getElementById('stu-name').value = '';
       document.getElementById('stu-nis').value = '';
+      document.getElementById('stu-nisn').value = '';
+      document.getElementById('stu-name').value = '';
       document.getElementById('stu-gender').value = 'L';
       document.getElementById('stu-parent').value = '';
       document.getElementById('modal-stu').classList.add('active');
     };
-    container.querySelectorAll('[data-edit-stu]').forEach(btn => {
-      btn.onclick = () => {
-        const s = studentArr.find(x => x.id === btn.dataset.editStu);
-        if (!s) return;
-        document.getElementById('stu-modal-title').innerText = 'Edit siswa';
-        document.getElementById('stu-id').value = s.id;
-        document.getElementById('stu-name').value = s.name;
-        document.getElementById('stu-nis').value = s.nis || '';
-        document.getElementById('stu-gender').value = s.gender || 'L';
-        document.getElementById('stu-parent').value = s.parentId || '';
-        document.getElementById('modal-stu').classList.add('active');
-      };
-    });
-    container.querySelectorAll('[data-del-stu]').forEach(btn => {
-      btn.onclick = async () => {
-        if (!confirm('Hapus data siswa ini?')) return;
-        await DB.deleteStudent(btn.dataset.delStu);
-        this.renderStudents(container, classId);
-      };
-    });
+
     document.getElementById('form-stu').onsubmit = async (e) => {
       e.preventDefault();
       const id = document.getElementById('stu-id').value || null;
       await DB.saveStudent(id, {
-        name: document.getElementById('stu-name').value.trim(),
-        nis: document.getElementById('stu-nis').value.trim(),
-        gender: document.getElementById('stu-gender').value,
         classId: classId,
+        nis: document.getElementById('stu-nis').value.trim(),
+        nisn: document.getElementById('stu-nisn').value.trim(),
+        name: document.getElementById('stu-name').value.trim(),
+        gender: document.getElementById('stu-gender').value,
         parentId: document.getElementById('stu-parent').value || null
       });
       this._closeModal('modal-stu');
       this.renderStudents(container, classId);
     };
   },
-  // ========== DATA MATA PELAJARAN ==========
   async renderSubjects(container) {
-    Router.setTitle('Mata pelajaran', 'Kelola mata pelajaran dan kategorinya.');
+    Router.setTitle('Mata Pelajaran', 'Kelola daftar mata pelajaran sekolah.');
     const subjects = await DB.getSubjects();
     const subArr = DB.toArray(subjects).sort((a, b) => (a.order || 0) - (b.order || 0));
     const categoryLabel = {
@@ -544,44 +683,65 @@ const AdminPages = {
       'lokal': 'badge-warning',
       'kekhasan': 'badge-danger'
     };
-    const rows = subArr.length ? subArr.map(s => `
-      <tr>
-        <td>${s.order || '-'}</td>
-        <td><strong>${s.name}</strong></td>
-        <td><span class="badge ${categoryBadge[s.category] || 'badge-primary'}">${categoryLabel[s.category] || s.category}</span></td>
-        <td class="action-cell">
-          <button class="btn btn-outline btn-sm" data-edit-sub="${s.id}"><i class="ph ph-pencil-simple"></i></button>
-          <button class="btn btn-danger btn-sm" data-del-sub="${s.id}"><i class="ph ph-trash"></i></button>
-        </td>
-      </tr>
-    `).join('') : '<tr><td colspan="4" class="text-center text-muted">Belum ada mata pelajaran.</td></tr>';
+    
+    const renderTable = () => {
+      const q = (document.getElementById('search-sub')?.value || '').toLowerCase();
+      const filtered = subArr.filter(s => (s.name || '').toLowerCase().includes(q));
+      
+      const rows = filtered.length ? filtered.map(s => `
+        <tr>
+          <td>${s.order || '-'}</td>
+          <td><strong>${s.name}</strong></td>
+          <td><span class="badge ${categoryBadge[s.category] || 'badge-primary'}">${categoryLabel[s.category] || s.category}</span></td>
+          <td class="action-cell">
+            <button class="btn btn-outline btn-sm" data-edit-sub="${s.id}"><i class="ph ph-pencil-simple"></i></button>
+            <button class="btn btn-danger btn-sm" data-del-sub="${s.id}"><i class="ph ph-trash"></i></button>
+          </td>
+        </tr>
+      `).join('') : '<tr><td colspan="4" class="text-center text-muted">Belum ada mata pelajaran.</td></tr>';
+      
+      const tbody = container.querySelector('#tbody-subjects');
+      if (tbody) tbody.innerHTML = rows;
+
+      container.querySelectorAll('[data-edit-sub]').forEach(btn => {
+        btn.onclick = () => {
+          const s = subArr.find(x => x.id === btn.dataset.editSub);
+          if (s) this._openSubjectModal(s);
+        };
+      });
+      container.querySelectorAll('[data-del-sub]').forEach(btn => {
+        btn.onclick = async () => {
+          if (!confirm('Yakin menghapus mata pelajaran ini?')) return;
+          await DB.deleteSubject(btn.dataset.delSub);
+          this.renderSubjects(container);
+        };
+      });
+    };
+
     container.innerHTML = `
-      <div class="card">
-        <div class="card-header">
-          <h3 class="card-title">Daftar mata pelajaran</h3>
-          <button class="btn btn-primary" id="btn-add-sub"><i class="ph ph-plus"></i> Tambah</button>
+      <div class="card" style="margin-bottom:16px">
+        <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center; justify-content:space-between">
+          <div class="search-box" style="flex:1; min-width:250px; position:relative">
+            <i class="ph ph-magnifying-glass" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted)"></i>
+            <input type="text" id="search-sub" placeholder="Cari mata pelajaran..." style="width:100%; padding-left:36px; height:40px; border-radius:8px; border:1px solid var(--border)">
+          </div>
+          <button class="btn btn-primary" id="btn-add-sub"><i class="ph ph-plus"></i> Tambah Mapel</button>
         </div>
+      </div>
+      <div class="card">
         <div class="table-responsive">
           <table class="table"><thead><tr><th style="width:50px">No</th><th>Nama Mata Pelajaran</th><th>Kategori</th><th style="width:100px">Aksi</th></tr></thead>
-          <tbody>${rows}</tbody></table>
+          <tbody id="tbody-subjects"></tbody></table>
         </div>
       </div>
       ${this._subjectModal()}
     `;
+    
+    renderTable();
+    document.getElementById('search-sub').addEventListener('input', renderTable);
+
     document.getElementById('btn-add-sub').onclick = () => this._openSubjectModal(null, subArr.length + 1);
-    container.querySelectorAll('[data-edit-sub]').forEach(btn => {
-      btn.onclick = () => {
-        const s = subArr.find(x => x.id === btn.dataset.editSub);
-        if (s) this._openSubjectModal(s);
-      };
-    });
-    container.querySelectorAll('[data-del-sub]').forEach(btn => {
-      btn.onclick = async () => {
-        if (!confirm('Yakin hapus mata pelajaran ini?')) return;
-        await DB.deleteSubject(btn.dataset.delSub);
-        this.renderSubjects(container);
-      };
-    });
+    
     document.getElementById('form-sub').onsubmit = async (e) => {
       e.preventDefault();
       const id = document.getElementById('sub-id').value || null;
@@ -606,21 +766,21 @@ const AdminPages = {
           <div class="modal-body">
             <input type="hidden" id="sub-id">
             <div class="form-group">
-              <label>Nama mata pelajaran</label>
-              <input id="sub-name" required placeholder="Contoh: Matematika">
-            </div>
-            <div class="form-group">
               <label>Kategori</label>
-              <select id="sub-category">
-                <option value="agama">Pendidikan Agama</option>
-                <option value="standar">Mata Pelajaran Umum</option>
+              <select id="sub-category" required>
+                <option value="standar">Umum</option>
+                <option value="agama">Agama</option>
                 <option value="lokal">Muatan Lokal</option>
-                <option value="kekhasan">Kekhasan Muhammadiyah</option>
+                <option value="kekhasan">Kekhasan</option>
               </select>
             </div>
             <div class="form-group">
-              <label>Urutan tampil</label>
-              <input id="sub-order" type="number" min="1" value="1">
+              <label>Nama Mata Pelajaran</label>
+              <input type="text" id="sub-name" required placeholder="Contoh: Matematika">
+            </div>
+            <div class="form-group">
+              <label>Urutan (Opsional)</label>
+              <input type="number" id="sub-order" placeholder="Contoh: 1">
             </div>
           </div>
           <div class="modal-footer">
@@ -631,29 +791,36 @@ const AdminPages = {
       </div>
     </div>`;
   },
-  _openSubjectModal(existing, nextOrder) {
+  _openSubjectModal(existing = null, nextOrder = 1) {
     document.getElementById('sub-modal-title').innerText = existing ? 'Edit mata pelajaran' : 'Tambah mata pelajaran';
     document.getElementById('sub-id').value = existing ? existing.id : '';
-    document.getElementById('sub-name').value = existing ? existing.name : '';
     document.getElementById('sub-category').value = existing ? existing.category : 'standar';
-    document.getElementById('sub-order').value = existing ? existing.order : (nextOrder || 1);
+    document.getElementById('sub-name').value = existing ? existing.name : '';
+    document.getElementById('sub-order').value = existing ? existing.order : nextOrder;
     document.getElementById('modal-sub').classList.add('active');
   },
-  // ========== DATA EKSTRAKURIKULER ==========
   async renderExtracurriculars(container) {
     Router.setTitle('Ekstrakurikuler', 'Kelola daftar ekstrakurikuler sekolah.');
-    const ekskuls = await DB.getExtracurriculars();
+    const [ekskuls, users] = await Promise.all([
+      DB.getExtracurriculars(),
+      DB.getAllUsers()
+    ]);
+    const guruArr = DB.toArray(users).filter(u => u.role === 'guru');
     const eksArr = DB.toArray(ekskuls).sort((a, b) => (a.order || 0) - (b.order || 0));
-    const rows = eksArr.length ? eksArr.map(e => `
+    const rows = eksArr.length ? eksArr.map(e => {
+      const guru = guruArr.find(g => g.id === e.teacherId);
+      return `
       <tr>
         <td>${e.order || '-'}</td>
         <td><strong>${e.name}</strong></td>
+        <td>${guru ? guru.name : '<span class="text-muted">Belum ada pembina</span>'}</td>
         <td class="action-cell">
           <button class="btn btn-outline btn-sm" data-edit-eks="${e.id}"><i class="ph ph-pencil-simple"></i></button>
           <button class="btn btn-danger btn-sm" data-del-eks="${e.id}"><i class="ph ph-trash"></i></button>
         </td>
       </tr>
-    `).join('') : '<tr><td colspan="3" class="text-center text-muted">Belum ada ekstrakurikuler.</td></tr>';
+    `}).join('') : '<tr><td colspan="4" class="text-center text-muted">Belum ada ekstrakurikuler.</td></tr>';
+    
     container.innerHTML = `
       <div class="card">
         <div class="card-header">
@@ -661,11 +828,11 @@ const AdminPages = {
           <button class="btn btn-primary" id="btn-add-eks"><i class="ph ph-plus"></i> Tambah</button>
         </div>
         <div class="table-responsive">
-          <table class="table"><thead><tr><th style="width:50px">No</th><th>Nama Ekstrakurikuler</th><th style="width:100px">Aksi</th></tr></thead>
+          <table class="table"><thead><tr><th style="width:50px">No</th><th>Nama Ekstrakurikuler</th><th>Guru Pembina</th><th style="width:100px">Aksi</th></tr></thead>
           <tbody>${rows}</tbody></table>
         </div>
       </div>
-      ${this._extracurricularModal()}
+      ${this._extracurricularModal(guruArr)}
     `;
     document.getElementById('btn-add-eks').onclick = () => this._openExtracurricularModal(null, eksArr.length + 1);
     container.querySelectorAll('[data-edit-eks]').forEach(btn => {
@@ -686,13 +853,14 @@ const AdminPages = {
       const id = document.getElementById('eks-id').value || null;
       await DB.saveExtracurricular(id, {
         name: document.getElementById('eks-name').value.trim(),
-        order: parseInt(document.getElementById('eks-order').value) || 1
+        order: parseInt(document.getElementById('eks-order').value) || 1,
+        teacherId: document.getElementById('eks-teacher').value || null
       });
       this._closeModal('modal-eks');
       this.renderExtracurriculars(container);
     };
   },
-  _extracurricularModal() {
+  _extracurricularModal(guruArr) {
     return `
     <div class="modal-overlay" id="modal-eks">
       <div class="modal">
@@ -724,6 +892,7 @@ const AdminPages = {
     document.getElementById('eks-modal-title').innerText = existing ? 'Edit ekstrakurikuler' : 'Tambah ekstrakurikuler';
     document.getElementById('eks-id').value = existing ? existing.id : '';
     document.getElementById('eks-name').value = existing ? existing.name : '';
+    document.getElementById('eks-teacher').value = existing ? (existing.teacherId || '') : '';
     document.getElementById('eks-order').value = existing ? existing.order : (nextOrder || 1);
     document.getElementById('modal-eks').classList.add('active');
   },
