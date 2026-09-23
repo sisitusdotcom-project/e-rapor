@@ -105,6 +105,10 @@ const DB = {
     if (!isDBReady()) return;
     await db.ref(`classes/${id}`).remove();
   },
+  async saveClassSubjectTeachers(classId, subjectTeachers) {
+    if (!isDBReady()) return;
+    await db.ref(`classes/${classId}/subjectTeachers`).set(subjectTeachers);
+  },
   // --- STUDENTS ---
   async getAllStudents() {
     if (!isDBReady()) return {};
