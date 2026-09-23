@@ -1,6 +1,12 @@
 // guru.js — Modul Guru/Wali Kelas.
 // Fitur: melihat kelas yang diampu, penilaian karakter tap-to-rate,
 // catatan observasi, dan riwayat observasi.
+const ATTENDANCE_GEOFENCE = window.APP_ATTENDANCE_GEOFENCE || {
+  lat: null,
+  lng: null,
+  radiusMeters: null
+};
+
 const GuruPages = {
   // ========== BERANDA (Dasbor Universal) ==========
   async renderDashboard(container) {
@@ -88,7 +94,7 @@ const GuruPages = {
         <h3 style="font-size: 16px; margin: 0 0 12px 0; color: #374151; display: flex; align-items: center; gap: 8px;">
           <i class="ph ph-megaphone" style="color: #F59E0B;"></i> Papan Informasi
         </h3>
-        <p class="text-muted" style="font-size: 14px; margin: 0;">Lokasi absensi aktif: ${(-7.376568).toFixed(6)} / ${112.750517.toFixed(6)} dengan radius ${60} meter.</p>
+        <p class="text-muted" style="font-size: 14px; margin: 0;">Validasi lokasi dilakukan oleh server secara aman. Browser tidak menyimpan koordinat sekolah untuk keperluan validasi presensi.</p>
       </div>
     `;
   },
@@ -842,11 +848,23 @@ const GuruPages = {
           <i class="ph ph-spinner ph-spin" style="font-size: 32px;"></i>
         </div>
         <h3 id="geo-status-title" style="margin: 0 0 8px 0;">Mencari Lokasi...</h3>
-        <p id="geo-status-text" class="text-muted" style="margin: 0 0 24px 0; font-size: 14px;">Mohon tunggu dan pastikan GPS Anda aktif.</p>
+        <p id="geo-status-text" class="text-muted" style="margin: 0 0 24px 0; font-size: 14px;">Mohon tunggu dan pastikan posisi Anda aktif.</p>
         
         <div style="display: flex; gap: 12px; justify-content: center;">
           <button id="btn-checkin" class="btn btn-primary" disabled><i class="ph ph-sign-in"></i> Presensi Datang</button>
           <button id="btn-checkout" class="btn btn-outline" disabled><i class="ph ph-sign-out"></i> Presensi Pulang</button>
+        </div>
+
+        <div id="proof-panel" style="margin-top: 20px; border: 1px solid #E5E7EB; border-radius: 12px; padding: 14px; text-align: left; display: none;">
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 10px;">
+            <strong style="font-size: 13px;">Bukti Foto Kehadiran dari Kamera</strong>
+            <span id="proof-status" class="text-muted" style="font-size: 12px;">Belum ada foto</span>
+          </div>
+          <video id="attendance-camera-video" autoplay playsinline muted style="width: 100%; max-height: 220px; object-fit: cover; border-radius: 10px; border: 1px solid #E5E7EB; background: #000; display: block;"></video>
+          <button id="attendance-camera-capture" type="button" class="btn btn-primary" style="width: 100%; margin-top: 12px;">Ambil Foto Kamera</button>
+          <div id="attendance-proof-wrapper" style="display: none; margin-top: 12px;">
+            <img id="attendance-proof-preview" src="" alt="Preview bukti presensi" style="width: 100%; max-height: 220px; object-fit: cover; border-radius: 10px; border: 1px solid #E5E7EB;">
+          </div>
         </div>
       </div>
       <div class="card" style="margin-top: 16px;">
@@ -863,6 +881,117 @@ const GuruPages = {
     const btnCheckin = document.getElementById('btn-checkin');
     const btnCheckout = document.getElementById('btn-checkout');
     const histContainer = document.getElementById('att-history-container');
+    const proofPanel = document.getElementById('proof-panel');
+    const cameraVideo = document.getElementById('attendance-camera-video');
+    const cameraCaptureBtn = document.getElementById('attendance-camera-capture');
+    const proofPreview = document.getElementById('attendance-proof-preview');
+    const proofStatus = document.getElementById('proof-status');
+    const proofWrapper = document.getElementById('attendance-proof-wrapper');
+
+    let cameraStream = null;
+    let capturedProofDataUrl = null;
+
+    const stopCamera = () => {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach((track) => track.stop());
+        cameraStream = null;
+      }
+      if (cameraVideo) {
+        cameraVideo.srcObject = null;
+      }
+    };
+
+    const startCamera = async () => {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        alert('Browser Anda tidak mendukung akses kamera.');
+        return false;
+      }
+
+      try {
+        if (cameraStream) return true;
+        cameraStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: 'environment',
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          },
+          audio: false
+        });
+        cameraVideo.srcObject = cameraStream;
+        cameraVideo.play();
+        return true;
+      } catch (error) {
+        console.error('Kamera error:', error);
+        alert('Izin kamera diperlukan untuk mengambil bukti presensi.');
+        return false;
+      }
+    };
+
+    const compressImageDataUrl = async (dataUrl, maxWidth = 1600, quality = 0.82) => {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const scale = Math.min(1, maxWidth / img.width);
+          canvas.width = Math.max(1, Math.round(img.width * scale));
+          canvas.height = Math.max(1, Math.round(img.height * scale));
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.onerror = reject;
+        img.src = dataUrl;
+      });
+    };
+
+    const captureCameraProof = async () => {
+      if (!cameraVideo || !cameraVideo.videoWidth || !cameraVideo.videoHeight) {
+        alert('Kamera belum siap. Silakan tunggu sebentar lalu coba lagi.');
+        return;
+      }
+
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = cameraVideo.videoWidth;
+        canvas.height = cameraVideo.videoHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(cameraVideo, 0, 0, canvas.width, canvas.height);
+
+        const snapshot = canvas.toDataURL('image/jpeg', 0.82);
+        const compressed = await compressImageDataUrl(snapshot, 1600, 0.82);
+        capturedProofDataUrl = compressed;
+        proofPreview.src = compressed;
+        proofWrapper.style.display = 'block';
+        proofStatus.innerText = 'Foto siap dikirim';
+        cameraCaptureBtn.innerText = 'Ambil Ulang Foto';
+        stopCamera();
+      } catch (error) {
+        console.error('Capture camera error:', error);
+        alert('Gagal mengambil foto dari kamera. Silakan coba lagi.');
+      }
+    };
+
+    cameraCaptureBtn.addEventListener('click', async () => {
+      const started = await startCamera();
+      if (!started || !cameraVideo) return;
+      try {
+        await new Promise((resolve) => {
+          const onReady = () => {
+            cameraVideo.removeEventListener('loadeddata', onReady);
+            resolve();
+          };
+          if (cameraVideo.readyState >= 2) {
+            resolve();
+            return;
+          }
+          cameraVideo.addEventListener('loadeddata', onReady, { once: true });
+        });
+        await captureCameraProof();
+      } catch (error) {
+        console.error('Camera capture button error:', error);
+        alert('Gagal mengakses kamera. Silakan coba lagi.');
+      }
+    });
 
     const today = new Date();
     const dateStr = today.toISOString().slice(0, 10);
@@ -874,15 +1003,20 @@ const GuruPages = {
       if (!myAtt) {
         histContainer.innerHTML = '<p class="text-muted" style="font-size: 13px; margin: 0;">Belum ada rekam presensi hari ini.</p>';
       } else {
+        const proofMarkup = myAtt.proof_url
+          ? `<div style="margin-top: 12px;"><img src="${DriveBridge.normalizeDriveImageUrl(myAtt.proof_url, 'w300', '')}" alt="Bukti presensi" style="width: 100%; max-height: 180px; object-fit: cover; border-radius: 10px; border: 1px solid #E5E7EB;"></div>`
+          : '';
+
         histContainer.innerHTML = `
           <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #E5E7EB; padding-bottom: 8px; margin-bottom: 8px;">
             <span class="text-muted" style="font-size: 13px;">Datang</span>
             <strong style="font-size: 13px;">${myAtt.time_in || '-'}</strong>
           </div>
-          <div style="display: flex; justify-content: space-between;">
+          <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #E5E7EB; padding-bottom: 8px; margin-bottom: 8px;">
             <span class="text-muted" style="font-size: 13px;">Pulang</span>
             <strong style="font-size: 13px;">${myAtt.time_out || '-'}</strong>
           </div>
+          ${proofMarkup}
         `;
         if (myAtt.time_in && !myAtt.time_out) {
           btnCheckin.style.display = 'none';
@@ -897,12 +1031,12 @@ const GuruPages = {
     await loadHistory();
 
     // Geolocation Logic
-    const settings = await DB.getSchoolSettings();
-    const schoolLat = Number(settings.location.lat ?? -7.402655);
-    const schoolLng = Number(settings.location.lng ?? 112.744400);
-    const maxRadius = Number(settings.location.radius_meters || 60);
+    const schoolLat = Number(ATTENDANCE_GEOFENCE?.lat);
+    const schoolLng = Number(ATTENDANCE_GEOFENCE?.lng);
+    const maxRadius = Number(ATTENDANCE_GEOFENCE?.radiusMeters ?? 0);
+    const maxAccuracy = 200;
+    const hasLocalGeofence = Number.isFinite(schoolLat) && Number.isFinite(schoolLng) && Number.isFinite(maxRadius) && maxRadius > 0;
 
-    // Haversine formula
     const getDistance = (lat1, lon1, lat2, lon2) => {
       const R = 6371e3;
       const p1 = lat1 * Math.PI / 180;
@@ -915,61 +1049,149 @@ const GuruPages = {
     };
 
     let currentLocation = null;
+    let currentAccuracy = null;
+    let watchId = null;
+
+    const acceptPosition = (latitude, longitude, accuracy, distance) => {
+      currentAccuracy = Number(accuracy || 0);
+      currentLocation = { lat: latitude, lng: longitude };
+
+      if (!hasLocalGeofence) {
+        const posisiReady = currentAccuracy <= maxAccuracy;
+        if (posisiReady) {
+          statusIcon.style.background = '#D1FAE5'; statusIcon.style.color = '#10B981';
+          statusIcon.innerHTML = '<i class="ph ph-shield-check" style="font-size: 32px;"></i>';
+          statusTitle.innerText = 'Posisi Sudah Siap';
+          statusText.innerText = `Akurasi posisi saat ini ${Math.round(currentAccuracy)} m. Validasi final tetap dilakukan di server untuk memastikan lokasi sekolah benar.`;
+          proofPanel.style.display = 'block';
+          cameraVideo.style.display = 'block';
+          proofWrapper.style.display = 'none';
+          proofStatus.innerText = 'Belum ada foto';
+          cameraCaptureBtn.innerText = 'Ambil Foto Kamera';
+          btnCheckin.disabled = false;
+          btnCheckout.disabled = false;
+          void startCamera();
+          if (watchId !== null && navigator.geolocation) {
+            navigator.geolocation.clearWatch(watchId);
+            watchId = null;
+          }
+          return true;
+        }
+
+        statusIcon.style.background = '#FEF3C7'; statusIcon.style.color = '#F59E0B';
+        statusIcon.innerHTML = '<i class="ph ph-warning" style="font-size: 32px;"></i>';
+        statusTitle.innerText = 'Posisi Belum Cukup Akurat';
+        statusText.innerText = `Akurasi posisi saat ini ${Math.round(currentAccuracy)} m. Sistem butuh ${maxAccuracy} m atau lebih baik agar presensi bisa diproses.`;
+        btnCheckin.disabled = true;
+        btnCheckout.disabled = true;
+        return false;
+      }
+
+      const adjustedDistance = Math.max(0, distance - accuracy);
+      const isInside = adjustedDistance <= maxRadius && accuracy <= maxAccuracy;
+
+      if (isInside) {
+        statusIcon.style.background = '#D1FAE5'; statusIcon.style.color = '#10B981';
+        statusIcon.innerHTML = '<i class="ph ph-check-circle" style="font-size: 32px;"></i>';
+        statusTitle.innerText = "Berada di Area Sekolah";
+        statusText.innerText = `Jarak efektif: ${Math.round(adjustedDistance)} meter. Akurasi posisi: ${Math.round(accuracy)} m.`;
+        proofPanel.style.display = 'block';
+        cameraVideo.style.display = 'block';
+        proofWrapper.style.display = 'none';
+        proofStatus.innerText = 'Belum ada foto';
+        cameraCaptureBtn.innerText = 'Ambil Foto Kamera';
+        btnCheckin.disabled = false;
+        btnCheckout.disabled = false;
+        void startCamera();
+        if (watchId !== null && navigator.geolocation) {
+          navigator.geolocation.clearWatch(watchId);
+          watchId = null;
+        }
+        return true;
+      }
+
+      statusIcon.style.background = '#FEF3C7'; statusIcon.style.color = '#F59E0B';
+      statusIcon.innerHTML = '<i class="ph ph-warning" style="font-size: 32px;"></i>';
+      statusTitle.innerText = "Posisi Belum Valid";
+      statusText.innerText = `Jarak Anda sekitar ${Math.round(distance)} m dari sekolah dan akurasi posisi ${Math.round(accuracy)} m. Harap bergerak ke area yang lebih dekat atau tunggu posisi lebih stabil.`;
+      btnCheckin.disabled = true;
+      btnCheckout.disabled = true;
+      return false;
+    };
 
     if (!navigator.geolocation) {
       statusIcon.style.background = '#FEE2E2'; statusIcon.style.color = '#EF4444';
       statusIcon.innerHTML = '<i class="ph ph-warning-circle" style="font-size: 32px;"></i>';
-      statusTitle.innerText = "GPS Tidak Didukung";
-      statusText.innerText = "Browser Anda tidak mendukung fitur lokasi.";
+      statusTitle.innerText = "Perangkat Tidak Mendukung Posisi";
+      statusText.innerText = "Perangkat Anda tidak mendukung fitur lokasi.";
       return;
     }
 
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude, accuracy } = position.coords;
-        currentLocation = { lat: latitude, lng: longitude };
-        const dist = getDistance(schoolLat, schoolLng, latitude, longitude);
+    const onGeoSuccess = (position) => {
+      const { latitude, longitude, accuracy } = position.coords;
+      const distance = hasLocalGeofence ? getDistance(schoolLat, schoolLng, latitude, longitude) : 0;
+      const ok = acceptPosition(latitude, longitude, accuracy, distance);
+      if (!ok && watchId === null && hasLocalGeofence) {
+        statusTitle.innerText = "Posisi Belum Valid";
+        statusText.innerText = `Jarak Anda sekitar ${Math.round(distance)} m dari sekolah dan akurasi posisi ${Math.round(accuracy)} m. Harap bergerak ke area yang lebih dekat atau tunggu posisi lebih stabil.`;
+      }
+    };
 
-        if (dist <= maxRadius && accuracy <= 100) {
-          statusIcon.style.background = '#D1FAE5'; statusIcon.style.color = '#10B981';
-          statusIcon.innerHTML = '<i class="ph ph-check-circle" style="font-size: 32px;"></i>';
-          statusTitle.innerText = "Berada di Area Sekolah";
-          statusText.innerText = `Jarak: ${Math.round(dist)} meter dari titik pusat. Akurasi GPS: ${Math.round(accuracy)} m.`;
-          btnCheckin.disabled = false;
-          btnCheckout.disabled = false;
-        } else {
-          statusIcon.style.background = '#FEF3C7'; statusIcon.style.color = '#F59E0B';
-          statusIcon.innerHTML = '<i class="ph ph-warning" style="font-size: 32px;"></i>';
-          statusTitle.innerText = "Di Luar Area / GPS Kurang Akurat";
-          statusText.innerText = `Anda berada ${Math.round(dist)} meter dari sekolah. Toleransi: ${maxRadius}m dengan akurasi maksimal 100m.`;
-        }
-      },
-      (error) => {
-        statusIcon.style.background = '#FEE2E2'; statusIcon.style.color = '#EF4444';
-        statusIcon.innerHTML = '<i class="ph ph-warning-circle" style="font-size: 32px;"></i>';
-        statusTitle.innerText = "Akses Lokasi Ditolak";
-        statusText.innerText = "Izinkan akses lokasi pada browser untuk melakukan presensi.";
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
+    const onGeoError = (error) => {
+      statusIcon.style.background = '#FEE2E2'; statusIcon.style.color = '#EF4444';
+      statusIcon.innerHTML = '<i class="ph ph-warning-circle" style="font-size: 32px;"></i>';
+      statusTitle.innerText = "Akses Posisi Ditolak";
+      statusText.innerText = "Izinkan akses posisi pada browser untuk melakukan presensi.";
+      console.error('Geolocation error:', error);
+    };
+
+    watchId = navigator.geolocation.watchPosition(onGeoSuccess, onGeoError, {
+      enableHighAccuracy: true,
+      timeout: 15000,
+      maximumAge: 0
+    });
 
     const handlePresensi = async (type) => {
       if (!currentLocation) return;
       const btn = type === 'in' ? btnCheckin : btnCheckout;
+      if (!capturedProofDataUrl || !capturedProofDataUrl.startsWith('data:image/')) {
+        alert('Harap ambil foto bukti kehadiran dari kamera sebelum presensi disimpan.');
+        return;
+      }
+
       btn.disabled = true;
       btn.innerHTML = '<i class="ph ph-spinner ph-spin"></i> Memproses...';
-      
-      const timeStr = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-      const payload = type === 'in' 
-        ? { time_in: timeStr, location_in: currentLocation } 
-        : { time_out: timeStr, location_out: currentLocation };
-      
+
       try {
+        const compressedProof = await compressImageDataUrl(capturedProofDataUrl, 1600, 0.82);
+        const result = await DB.submitTeacherAttendanceToWorker({
+          dateStr,
+          teacherId,
+          type,
+          photoDataUrl: compressedProof,
+          location: currentLocation,
+          accuracy: currentAccuracy
+        });
+
+        const payload = type === 'in'
+          ? { time_in: result.serverTimestamp ? new Date(result.serverTimestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }), location_in: result.location || currentLocation }
+          : { time_out: result.serverTimestamp ? new Date(result.serverTimestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }), location_out: result.location || currentLocation };
+
+        if (result.proof_url) payload.proof_url = result.proof_url;
+        if (result.record && Object.keys(result.record).length) Object.assign(payload, result.record);
+
         await DB.saveTeacherAttendance(dateStr, teacherId, payload);
         alert('Presensi berhasil dicatat.');
+        capturedProofDataUrl = null;
+        proofPreview.src = '';
+        proofWrapper.style.display = 'none';
+        proofStatus.innerText = 'Belum ada foto';
+        cameraCaptureBtn.innerText = 'Ambil Foto Kamera';
+        stopCamera();
         await loadHistory();
       } catch (err) {
-        alert('Gagal mencatat presensi.');
+        console.error(err);
+        alert(err && err.message ? err.message : 'Gagal mencatat presensi. Pastikan foto dan lokasi benar, serta endpoint Drive aktif.');
         btn.disabled = false;
         btn.innerHTML = type === 'in' ? '<i class="ph ph-sign-in"></i> Presensi Datang' : '<i class="ph ph-sign-out"></i> Presensi Pulang';
       }

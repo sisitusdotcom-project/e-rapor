@@ -18,6 +18,18 @@ const DB = {
     delete safeData.password;
     await db.ref(`users/${uid}`).update(safeData);
   },
+  async saveProfilePhoto(uid, base64Data, mimeType = 'image/jpeg') {
+    if (!uid || !base64Data) return null;
+    const fileUrl = await DriveBridge.uploadProfilePhoto(uid, base64Data, mimeType);
+    if (!fileUrl) return null;
+    await db.ref(`users/${uid}/photoURL`).set(fileUrl);
+    return fileUrl;
+  },
+  async uploadDriveFile(fileName, mimeType, base64Data, folderId = null) {
+    if (!fileName || !mimeType || !base64Data) return null;
+    const result = await DriveBridge.uploadBase64({ fileName, mimeType, base64Data, folderId });
+    return result.fileUrl || null;
+  },
   async createUserInDB(uid, data) {
     if (!isDBReady()) return;
     const safeData = { ...data };
@@ -33,14 +45,28 @@ const DB = {
   },
   // --- SETTINGS (Tahun ajaran & semester) ---
   async getSettings() {
-    if (!isDBReady()) return {
+    const defaultSettings = {
       currentAcademicYear: '2026/2027',
-      currentSemester: '1'
+      currentSemester: '1',
+      attendanceRules: {
+        checkInStart: '07:00',
+        checkInEnd: '09:00',
+        checkOutStart: '15:00',
+        checkOutEnd: '17:00',
+        attendanceStartDate: '',
+        attendanceEndDate: ''
+      }
     };
+    if (!isDBReady()) return defaultSettings;
     const snap = await db.ref('settings').once('value');
-    return snap.val() || {
-      currentAcademicYear: '2026/2027',
-      currentSemester: '1'
+    const current = snap.val() || {};
+    return {
+      ...defaultSettings,
+      ...current,
+      attendanceRules: {
+        ...defaultSettings.attendanceRules,
+        ...(current.attendanceRules || {})
+      }
     };
   },
   async updateSettings(data) {
@@ -50,7 +76,11 @@ const DB = {
   // --- SCHOOL SETTINGS (Global config) ---
   async getSchoolSettings() {
     const defaultSettings = {
-      location: { lat: -7.376568, lng: 112.750517, radius_meters: 60 }
+      location: {
+        lat: null,
+        lng: null,
+        radius_meters: null
+      }
     };
     if (!isDBReady()) return defaultSettings;
     const snap = await db.ref('school_settings').once('value');
@@ -59,8 +89,9 @@ const DB = {
       ...defaultSettings,
       ...current,
       location: {
-        ...defaultSettings.location,
-        ...(current.location || {})
+        lat: current.location?.lat ?? null,
+        lng: current.location?.lng ?? null,
+        radius_meters: current.location?.radius_meters ?? null
       }
     };
   },
@@ -90,8 +121,64 @@ const DB = {
     if (data && data.location_in) payload.location_in = data.location_in;
     if (data && data.time_out) payload.time_out = data.time_out;
     if (data && data.location_out) payload.location_out = data.location_out;
+    if (data && data.proof_url) payload.proof_url = data.proof_url;
+    if (data && data.proofUrl) payload.proof_url = data.proofUrl;
     if (!Object.keys(payload).length) return;
     await db.ref(`teacher_attendance/${dateStr}/${teacherId}`).update(payload);
+  },
+  async saveTeacherAttendanceProof(dateStr, teacherId, base64Data, mimeType = 'image/jpeg') {
+    if (!base64Data) return null;
+    const fileUrl = await DriveBridge.uploadAttendanceProof(dateStr, teacherId, base64Data, mimeType);
+    if (!fileUrl) return null;
+    await this.saveTeacherAttendance(dateStr, teacherId, { proof_url: fileUrl });
+    return fileUrl;
+  },
+  async submitTeacherAttendanceToWorker({ dateStr, teacherId, type, photoDataUrl, location, accuracy }) {
+    const workerUrl = (window.CLOUDFLARE_ATTENDANCE_WORKER_URL || '').trim();
+
+    if (!workerUrl || workerUrl.includes('your-subdomain')) {
+      const fallbackProof = await this.saveTeacherAttendanceProof(dateStr, teacherId, photoDataUrl, 'image/jpeg');
+      const payload = {
+        ...(type === 'in' ? { time_in: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) } : {}),
+        ...(type === 'out' ? { time_out: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) } : {}),
+        ...(location ? (type === 'in' ? { location_in: location } : { location_out: location }) : {}),
+        ...(fallbackProof ? { proof_url: fallbackProof } : {})
+      };
+      await this.saveTeacherAttendance(dateStr, teacherId, payload);
+      return { status: 'success', proof_url: fallbackProof, record: payload };
+    }
+
+    const user = typeof firebase !== 'undefined' && firebase.auth ? firebase.auth().currentUser : null;
+    const idToken = user ? await user.getIdToken() : '';
+    const response = await fetch(workerUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(idToken ? { Authorization: `Bearer ${idToken}` } : {})
+      },
+      body: JSON.stringify({
+        dateStr,
+        teacherId,
+        type,
+        photoDataUrl,
+        location,
+        accuracy,
+        clientTimestamp: new Date().toISOString()
+      })
+    });
+
+    let result = {};
+    try {
+      result = await response.json();
+    } catch (error) {
+      result = { status: 'error', message: 'Respons worker tidak valid JSON.' };
+    }
+
+    if (!response.ok || result.status !== 'success') {
+      throw new Error(result && result.message ? result.message : 'Gagal memvalidasi absensi di server.');
+    }
+
+    return result;
   },
   // --- STUDENT ATTENDANCE (Daily per class) ---
   async getDailyStudentAttendance(dateStr, classId) {

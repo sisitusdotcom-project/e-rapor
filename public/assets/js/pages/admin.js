@@ -11,6 +11,7 @@ const AdminPages = {
       DB.getCharacters(),
       DB.getAllStudents()
     ]);
+    const attendanceRules = settings.attendanceRules || {};
     const userArr = DB.toArray(users);
     const classArr = DB.toArray(classes);
     const charArr = DB.toArray(chars);
@@ -53,6 +54,30 @@ const AdminPages = {
               <option value="2" ${settings.currentSemester === '2' ? 'selected' : ''}>Semester 2</option>
             </select>
           </div>
+          <div class="form-group" style="margin-bottom:12px">
+            <label>Jam masuk mulai</label>
+            <input id="set-checkin-start" type="time" value="${attendanceRules.checkInStart || '07:00'}">
+          </div>
+          <div class="form-group" style="margin-bottom:12px">
+            <label>Jam masuk selesai</label>
+            <input id="set-checkin-end" type="time" value="${attendanceRules.checkInEnd || '09:00'}">
+          </div>
+          <div class="form-group" style="margin-bottom:12px">
+            <label>Jam pulang mulai</label>
+            <input id="set-checkout-start" type="time" value="${attendanceRules.checkOutStart || '15:00'}">
+          </div>
+          <div class="form-group" style="margin-bottom:12px">
+            <label>Jam pulang selesai</label>
+            <input id="set-checkout-end" type="time" value="${attendanceRules.checkOutEnd || '17:00'}">
+          </div>
+          <div class="form-group" style="margin-bottom:12px">
+            <label>Tanggal absensi mulai</label>
+            <input id="set-date-start" type="date" value="${attendanceRules.attendanceStartDate || ''}">
+          </div>
+          <div class="form-group" style="margin-bottom:12px">
+            <label>Tanggal absensi selesai</label>
+            <input id="set-date-end" type="date" value="${attendanceRules.attendanceEndDate || ''}">
+          </div>
           <button type="submit" class="btn btn-primary"><i class="ph ph-floppy-disk"></i> Simpan</button>
         </form>
       </section>
@@ -72,7 +97,15 @@ const AdminPages = {
       btn.innerHTML = '<i class="ph ph-spinner"></i> Menyimpan...';
       await DB.updateSettings({
         currentAcademicYear: document.getElementById('set-year').value.trim(),
-        currentSemester: document.getElementById('set-sem').value
+        currentSemester: document.getElementById('set-sem').value,
+        attendanceRules: {
+          checkInStart: document.getElementById('set-checkin-start').value || '07:00',
+          checkInEnd: document.getElementById('set-checkin-end').value || '09:00',
+          checkOutStart: document.getElementById('set-checkout-start').value || '15:00',
+          checkOutEnd: document.getElementById('set-checkout-end').value || '17:00',
+          attendanceStartDate: document.getElementById('set-date-start').value || '',
+          attendanceEndDate: document.getElementById('set-date-end').value || ''
+        }
       });
       btn.disabled = false;
       btn.innerHTML = '<i class="ph ph-check"></i> Tersimpan';
@@ -906,10 +939,11 @@ const AdminPages = {
   async renderAttendance(container) {
     Router.setTitle('Rekapan Presensi', 'Monitoring absensi guru dan siswa per hari.');
     const today = new Date();
-    const dateStr = today.toISOString().slice(0, 10);
+    const defaultDate = today.toISOString().slice(0, 10);
+    const settings = await DB.getSettings();
     const [teacherAttendance, studentAttendance, classes, students, users] = await Promise.all([
-      DB.getTeacherAttendanceByDate(dateStr),
-      DB.getDailyStudentAttendanceByDate(dateStr),
+      DB.getTeacherAttendanceByDate(defaultDate),
+      DB.getDailyStudentAttendanceByDate(defaultDate),
       DB.getClasses(),
       DB.getAllStudents(),
       DB.getAllUsers()
@@ -918,24 +952,28 @@ const AdminPages = {
     const studentArr = DB.toArray(students);
     const teacherArr = DB.toArray(users).filter(u => u.role === 'guru');
 
-    const teacherRows = teacherArr.map(g => {
-      const att = teacherAttendance[g.id] || {};
+    const renderTeacherRows = (dateStr, teacherData, attendanceData) => teacherArr.map(g => {
+      const att = attendanceData[g.id] || {};
       const status = att.time_in ? (att.time_out ? 'Selesai' : 'Datang') : 'Belum hadir';
       const timeIn = att.time_in || '-';
       const timeOut = att.time_out || '-';
+      const proofBtn = att.proof_url
+        ? `<button class="btn btn-outline btn-sm" data-proof-date="${dateStr}" data-proof-teacher="${g.id}" data-proof-url="${att.proof_url}"><i class="ph ph-eye"></i> Lihat bukti</button>`
+        : '<span class="text-muted">Tidak ada bukti</span>';
       return `
         <tr>
           <td>${g.name}</td>
           <td><span class="badge ${att.time_in ? 'badge-success' : 'badge-warning'}">${status}</span></td>
           <td>${timeIn}</td>
           <td>${timeOut}</td>
+          <td>${proofBtn}</td>
         </tr>
       `;
-    }).join('') || '<tr><td colspan="4" class="text-center text-muted">Belum ada data presensi guru.</td></tr>';
+    }).join('') || '<tr><td colspan="5" class="text-center text-muted">Belum ada data presensi guru.</td></tr>';
 
-    const studentSummary = classArr.map(cls => {
+    const renderStudentSummary = (dateStr, attendanceData) => classArr.map(cls => {
       const classStudents = studentArr.filter(s => s.classId === cls.id);
-      const att = studentAttendance[cls.id] || {};
+      const att = attendanceData[cls.id] || {};
       let had = 0, sick = 0, izin = 0, alpha = 0;
       classStudents.forEach(s => {
         const v = att[s.id];
@@ -956,34 +994,87 @@ const AdminPages = {
       `;
     }).join('') || '<tr><td colspan="6" class="text-center text-muted">Belum ada data absensi siswa.</td></tr>';
 
-    container.innerHTML = `
-      <div class="card" style="margin-bottom:20px;">
-        <h3 class="card-title">Rekapan hari ini</h3>
-        <p class="text-muted">Tanggal: ${today.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
-      </div>
-      <div class="card" style="margin-bottom:20px">
-        <div class="card-header">
-          <h3 class="card-title">Presensi Guru</h3>
+    const buildTable = async (selectedDate) => {
+      const [teacherData, studentData] = await Promise.all([
+        DB.getTeacherAttendanceByDate(selectedDate),
+        DB.getDailyStudentAttendanceByDate(selectedDate)
+      ]);
+      const teacherRows = renderTeacherRows(selectedDate, teacherArr, teacherData);
+      const studentSummary = renderStudentSummary(selectedDate, studentData);
+      container.innerHTML = `
+        <div class="card" style="margin-bottom:20px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+            <div>
+              <h3 class="card-title" style="margin:0;">Rekapan presensi</h3>
+              <p class="text-muted" style="margin:6px 0 0 0;">Atur tanggal untuk melihat semua rekapan.</p>
+            </div>
+            <div class="form-group" style="margin:0; min-width:220px;">
+              <label style="display:block; margin-bottom:6px; font-size:12px;">Tanggal</label>
+              <input id="attendance-date-picker" type="date" value="${selectedDate}" class="form-control" style="width:100%;">
+            </div>
+          </div>
         </div>
-        <div class="table-responsive">
-          <table class="table">
-            <thead><tr><th>Nama Guru</th><th>Status</th><th>Datang</th><th>Pulang</th></tr></thead>
-            <tbody>${teacherRows}</tbody>
-          </table>
+        <div class="card" style="margin-bottom:20px">
+          <div class="card-header">
+            <h3 class="card-title">Presensi Guru</h3>
+          </div>
+          <div class="table-responsive">
+            <table class="table">
+              <thead><tr><th>Nama Guru</th><th>Status</th><th>Datang</th><th>Pulang</th><th>Bukti</th></tr></thead>
+              <tbody>${teacherRows}</tbody>
+            </table>
+          </div>
         </div>
-      </div>
-      <div class="card">
-        <div class="card-header">
-          <h3 class="card-title">Absensi Siswa per Kelas</h3>
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Absensi Siswa per Kelas</h3>
+          </div>
+          <div class="table-responsive">
+            <table class="table">
+              <thead><tr><th>Kelas</th><th>H</th><th>S</th><th>I</th><th>A</th><th>Total</th></tr></thead>
+              <tbody>${studentSummary}</tbody>
+            </table>
+          </div>
         </div>
-        <div class="table-responsive">
-          <table class="table">
-            <thead><tr><th>Kelas</th><th>H</th><th>S</th><th>I</th><th>A</th><th>Total</th></tr></thead>
-            <tbody>${studentSummary}</tbody>
-          </table>
-        </div>
-      </div>
-    `;
+      `;
+
+      const datePicker = document.getElementById('attendance-date-picker');
+      if (datePicker) {
+        datePicker.onchange = async () => {
+          const nextDate = datePicker.value || defaultDate;
+          await buildTable(nextDate);
+        };
+      }
+
+      container.querySelectorAll('[data-proof-url]').forEach(btn => {
+        btn.onclick = () => {
+          const url = btn.dataset.proofUrl;
+          const modal = document.createElement('div');
+          modal.className = 'modal-overlay active';
+          modal.innerHTML = `
+            <div class="modal" style="max-width: 720px;">
+              <div class="modal-header">
+                <h3 class="modal-title">Bukti Presensi</h3>
+                <button class="btn-icon" type="button" data-close-proof="1"><i class="ph ph-x"></i></button>
+              </div>
+              <div class="modal-body" style="text-align:center;">
+                <img src="${DriveBridge.normalizeDriveImageUrl(url, 'w800', '')}" alt="Bukti presensi" style="max-width:100%; max-height:70vh; border-radius:10px; object-fit:contain; background:#f3f4f6;">
+              </div>
+              <div class="modal-footer">
+                <a href="${DriveBridge.normalizeDriveImageUrl(url, 'w800', '')}" target="_blank" class="btn btn-primary">Buka ukuran penuh</a>
+                <button type="button" class="btn btn-outline" data-close-proof="1">Tutup</button>
+              </div>
+            </div>
+          `;
+          document.body.appendChild(modal);
+          modal.querySelectorAll('[data-close-proof]').forEach(el => {
+            el.onclick = () => modal.remove();
+          });
+        };
+      });
+    };
+
+    await buildTable(defaultDate);
   },
   // ========== HELPERS ==========
   _closeModal(id) {
