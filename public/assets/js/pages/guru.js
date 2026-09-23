@@ -10,38 +10,57 @@ const GuruPages = {
     const today = new Date();
     const dateStr = today.toISOString().slice(0, 10);
     const timeStr = today.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-    
-    // Cek status presensi guru hari ini (aman jika belum ada rule)
+    const [classes, students, myAtt] = await Promise.all([
+      DB.getClasses(),
+      DB.getAllStudents(),
+      DB.getTeacherAttendance(dateStr, Auth.currentUser.uid)
+    ]);
+    const classArr = DB.toArray(classes).filter(c => {
+      const isWali = c.teacherId === Auth.currentUser.uid;
+      const isMapel = c.subjectTeachers && Object.values(c.subjectTeachers).includes(Auth.currentUser.uid);
+      return isWali || isMapel;
+    });
+    const studentCount = DB.toArray(students).filter(s => classArr.some(c => c.id === s.classId)).length;
     let attStatus = 'Belum Presensi';
     let attClass = 'badge-warning';
-    try {
-      const myAtt = await DB.getTeacherAttendance(dateStr, Auth.currentUser.uid);
-      if (myAtt) {
-        if (myAtt.time_out) {
-          attStatus = 'Sudah Pulang (' + myAtt.time_out + ')';
-          attClass = 'badge-success';
-        } else if (myAtt.time_in) {
-          attStatus = 'Sudah Datang (' + myAtt.time_in + ')';
-          attClass = 'badge-success';
-        }
+    if (myAtt) {
+      if (myAtt.time_out) {
+        attStatus = 'Sudah Pulang (' + myAtt.time_out + ')';
+        attClass = 'badge-success';
+      } else if (myAtt.time_in) {
+        attStatus = 'Sudah Datang (' + myAtt.time_in + ')';
+        attClass = 'badge-success';
       }
-    } catch (e) {
-      // Jika rule belum di-deploy, tampilkan status default
     }
 
     container.innerHTML = `
       <div class="card" style="margin-bottom: 20px; background: linear-gradient(135deg, #10B981 0%, #059669 100%); color: white; border: none; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.2);">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
           <div>
             <p style="margin: 0; font-size: 14px; opacity: 0.9;">${today.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
             <h2 style="margin: 4px 0 0 0; font-size: 24px; font-weight: 700;">${timeStr}</h2>
           </div>
           <div style="text-align: right;">
             <p style="margin: 0; font-size: 13px; opacity: 0.9;">Status Kehadiran</p>
-            <span class="badge" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.4); margin-top: 4px;">${attStatus}</span>
+            <span class="badge ${attClass}" style="margin-top: 4px;">${attStatus}</span>
           </div>
         </div>
       </div>
+
+      <section class="card-grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom: 24px;">
+        <div class="card stat-card">
+          <div class="stat-icon" style="background:#ECFDF5;color:#10B981"><i class="ph ph-map-pin"></i></div>
+          <div><p class="stat-value">${myAtt ? (myAtt.time_in ? '✓' : '—') : '—'}</p><p class="stat-label text-muted">Datang</p></div>
+        </div>
+        <div class="card stat-card">
+          <div class="stat-icon" style="background:#EFF6FF;color:#3B82F6"><i class="ph ph-users-three"></i></div>
+          <div><p class="stat-value">${studentCount}</p><p class="stat-label text-muted">Siswa di kelas saya</p></div>
+        </div>
+        <div class="card stat-card">
+          <div class="stat-icon" style="background:#FEF2F2;color:#EF4444"><i class="ph ph-chalkboard-teacher"></i></div>
+          <div><p class="stat-value">${classArr.length}</p><p class="stat-label text-muted">Kelas terlibat</p></div>
+        </div>
+      </section>
 
       <h3 style="font-size: 16px; margin-bottom: 12px; color: #374151;">Aksi Cepat</h3>
       <div class="card-grid" style="grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); margin-bottom: 24px;">
@@ -69,7 +88,7 @@ const GuruPages = {
         <h3 style="font-size: 16px; margin: 0 0 12px 0; color: #374151; display: flex; align-items: center; gap: 8px;">
           <i class="ph ph-megaphone" style="color: #F59E0B;"></i> Papan Informasi
         </h3>
-        <p class="text-muted" style="font-size: 14px; margin: 0;">Belum ada pengumuman baru dari sekolah.</p>
+        <p class="text-muted" style="font-size: 14px; margin: 0;">Lokasi absensi aktif: ${(-7.376568).toFixed(6)} / ${112.750517.toFixed(6)} dengan radius ${60} meter.</p>
       </div>
     `;
   },
@@ -879,19 +898,19 @@ const GuruPages = {
 
     // Geolocation Logic
     const settings = await DB.getSchoolSettings();
-    const schoolLat = settings.location.lat;
-    const schoolLng = settings.location.lng;
-    const maxRadius = settings.location.radius_meters || 40;
+    const schoolLat = Number(settings.location.lat ?? -7.376568);
+    const schoolLng = Number(settings.location.lng ?? 112.750517);
+    const maxRadius = Number(settings.location.radius_meters || 60);
 
     // Haversine formula
     const getDistance = (lat1, lon1, lat2, lon2) => {
-      const R = 6371e3; // metres
-      const p1 = lat1 * Math.PI/180;
-      const p2 = lat2 * Math.PI/180;
-      const dp = (lat2-lat1) * Math.PI/180;
-      const dl = (lon2-lon1) * Math.PI/180;
-      const a = Math.sin(dp/2) * Math.sin(dp/2) + Math.cos(p1) * Math.cos(p2) * Math.sin(dl/2) * Math.sin(dl/2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      const R = 6371e3;
+      const p1 = lat1 * Math.PI / 180;
+      const p2 = lat2 * Math.PI / 180;
+      const dp = (lat2 - lat1) * Math.PI / 180;
+      const dl = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dp / 2) * Math.sin(dp / 2) + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) * Math.sin(dl / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
       return R * c;
     };
 
@@ -907,22 +926,22 @@ const GuruPages = {
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        const { latitude, longitude } = position.coords;
+        const { latitude, longitude, accuracy } = position.coords;
         currentLocation = { lat: latitude, lng: longitude };
         const dist = getDistance(schoolLat, schoolLng, latitude, longitude);
-        
-        if (dist <= maxRadius) {
+
+        if (dist <= maxRadius && accuracy <= 100) {
           statusIcon.style.background = '#D1FAE5'; statusIcon.style.color = '#10B981';
           statusIcon.innerHTML = '<i class="ph ph-check-circle" style="font-size: 32px;"></i>';
           statusTitle.innerText = "Berada di Area Sekolah";
-          statusText.innerText = `Jarak: ${Math.round(dist)} meter dari titik pusat.`;
+          statusText.innerText = `Jarak: ${Math.round(dist)} meter dari titik pusat. Akurasi GPS: ${Math.round(accuracy)} m.`;
           btnCheckin.disabled = false;
           btnCheckout.disabled = false;
         } else {
           statusIcon.style.background = '#FEF3C7'; statusIcon.style.color = '#F59E0B';
           statusIcon.innerHTML = '<i class="ph ph-warning" style="font-size: 32px;"></i>';
-          statusTitle.innerText = "Di Luar Area";
-          statusText.innerText = `Anda berada ${Math.round(dist)} meter dari sekolah. (Toleransi: ${maxRadius}m)`;
+          statusTitle.innerText = "Di Luar Area / GPS Kurang Akurat";
+          statusText.innerText = `Anda berada ${Math.round(dist)} meter dari sekolah. Toleransi: ${maxRadius}m dengan akurasi maksimal 100m.`;
         }
       },
       (error) => {

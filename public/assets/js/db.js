@@ -14,12 +14,16 @@ const DB = {
   },
   async saveUser(uid, data) {
     if (!isDBReady()) return;
-    await db.ref(`users/${uid}`).update(data);
+    const safeData = { ...data };
+    delete safeData.password;
+    await db.ref(`users/${uid}`).update(safeData);
   },
   async createUserInDB(uid, data) {
     if (!isDBReady()) return;
+    const safeData = { ...data };
+    delete safeData.password;
     await db.ref(`users/${uid}`).set({
-      ...data,
+      ...safeData,
       createdAt: firebase.database.ServerValue.TIMESTAMP
     });
   },
@@ -45,9 +49,20 @@ const DB = {
   },
   // --- SCHOOL SETTINGS (Global config) ---
   async getSchoolSettings() {
-    if (!isDBReady()) return { location: { lat: -7.387195, lng: 112.759298, radius_meters: 40 } };
+    const defaultSettings = {
+      location: { lat: -7.376568, lng: 112.750517, radius_meters: 60 }
+    };
+    if (!isDBReady()) return defaultSettings;
     const snap = await db.ref('school_settings').once('value');
-    return snap.val() || { location: { lat: -7.387195, lng: 112.759298, radius_meters: 40 } };
+    const current = snap.val() || {};
+    return {
+      ...defaultSettings,
+      ...current,
+      location: {
+        ...defaultSettings.location,
+        ...(current.location || {})
+      }
+    };
   },
   async updateSchoolSettings(data) {
     if (!isDBReady()) return;
@@ -59,9 +74,24 @@ const DB = {
     const snap = await db.ref(`teacher_attendance/${dateStr}/${teacherId}`).once('value');
     return snap.val();
   },
+  async getTeacherAttendanceByDate(dateStr) {
+    if (!isDBReady()) return {};
+    const snap = await db.ref(`teacher_attendance/${dateStr}`).once('value');
+    return snap.val() || {};
+  },
   async saveTeacherAttendance(dateStr, teacherId, data) {
     if (!isDBReady()) return;
-    await db.ref(`teacher_attendance/${dateStr}/${teacherId}`).update(data);
+    const isAdmin = typeof Auth !== 'undefined' && Auth.currentRole === 'admin';
+    if (typeof Auth !== 'undefined' && Auth.currentUser && teacherId !== Auth.currentUser.uid && !isAdmin) {
+      throw new Error('Anda tidak berwenang mengubah presensi guru lain.');
+    }
+    const payload = {};
+    if (data && data.time_in) payload.time_in = data.time_in;
+    if (data && data.location_in) payload.location_in = data.location_in;
+    if (data && data.time_out) payload.time_out = data.time_out;
+    if (data && data.location_out) payload.location_out = data.location_out;
+    if (!Object.keys(payload).length) return;
+    await db.ref(`teacher_attendance/${dateStr}/${teacherId}`).update(payload);
   },
   // --- STUDENT ATTENDANCE (Daily per class) ---
   async getDailyStudentAttendance(dateStr, classId) {
@@ -69,9 +99,28 @@ const DB = {
     const snap = await db.ref(`student_attendance_daily/${dateStr}/${classId}`).once('value');
     return snap.val() || {};
   },
+  async getDailyStudentAttendanceByDate(dateStr) {
+    if (!isDBReady()) return {};
+    const snap = await db.ref(`student_attendance_daily/${dateStr}`).once('value');
+    return snap.val() || {};
+  },
   async saveDailyStudentAttendance(dateStr, classId, data) {
     if (!isDBReady()) return;
-    await db.ref(`student_attendance_daily/${dateStr}/${classId}`).update(data);
+    const isAdmin = typeof Auth !== 'undefined' && Auth.currentRole === 'admin';
+    if (typeof Auth !== 'undefined' && Auth.currentUser && !isAdmin) {
+      const classes = await this.getClasses();
+      const cls = classes[classId] || null;
+      const isOwner = !!(cls && (cls.teacherId === Auth.currentUser.uid || (cls.subjectTeachers && Object.values(cls.subjectTeachers).includes(Auth.currentUser.uid))));
+      if (!isOwner) {
+        throw new Error('Anda tidak berwenang mengisi absensi kelas ini.');
+      }
+    }
+    const normalized = {};
+    Object.entries(data || {}).forEach(([studentId, status]) => {
+      if (['H', 'S', 'I', 'A'].includes(status)) normalized[studentId] = status;
+    });
+    if (!Object.keys(normalized).length) return;
+    await db.ref(`student_attendance_daily/${dateStr}/${classId}`).update(normalized);
   },
   // --- CHARACTERS (Aspek/Indikator) ---
   async getCharacters() {

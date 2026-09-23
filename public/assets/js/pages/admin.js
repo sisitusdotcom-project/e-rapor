@@ -902,12 +902,96 @@ const AdminPages = {
     document.getElementById('eks-order').value = existing ? existing.order : (nextOrder || 1);
     document.getElementById('modal-eks').classList.add('active');
   },
+  // ========== REKAP PRESENSI ==========
+  async renderAttendance(container) {
+    Router.setTitle('Rekapan Presensi', 'Monitoring absensi guru dan siswa per hari.');
+    const today = new Date();
+    const dateStr = today.toISOString().slice(0, 10);
+    const [teacherAttendance, studentAttendance, classes, students, users] = await Promise.all([
+      DB.getTeacherAttendanceByDate(dateStr),
+      DB.getDailyStudentAttendanceByDate(dateStr),
+      DB.getClasses(),
+      DB.getAllStudents(),
+      DB.getAllUsers()
+    ]);
+    const classArr = DB.toArray(classes);
+    const studentArr = DB.toArray(students);
+    const teacherArr = DB.toArray(users).filter(u => u.role === 'guru');
+
+    const teacherRows = teacherArr.map(g => {
+      const att = teacherAttendance[g.id] || {};
+      const status = att.time_in ? (att.time_out ? 'Selesai' : 'Datang') : 'Belum hadir';
+      const timeIn = att.time_in || '-';
+      const timeOut = att.time_out || '-';
+      return `
+        <tr>
+          <td>${g.name}</td>
+          <td><span class="badge ${att.time_in ? 'badge-success' : 'badge-warning'}">${status}</span></td>
+          <td>${timeIn}</td>
+          <td>${timeOut}</td>
+        </tr>
+      `;
+    }).join('') || '<tr><td colspan="4" class="text-center text-muted">Belum ada data presensi guru.</td></tr>';
+
+    const studentSummary = classArr.map(cls => {
+      const classStudents = studentArr.filter(s => s.classId === cls.id);
+      const att = studentAttendance[cls.id] || {};
+      let had = 0, sick = 0, izin = 0, alpha = 0;
+      classStudents.forEach(s => {
+        const v = att[s.id];
+        if (v === 'H') had++;
+        else if (v === 'S') sick++;
+        else if (v === 'I') izin++;
+        else if (v === 'A') alpha++;
+      });
+      return `
+        <tr>
+          <td>${cls.name}</td>
+          <td>${had}</td>
+          <td>${sick}</td>
+          <td>${izin}</td>
+          <td>${alpha}</td>
+          <td>${classStudents.length}</td>
+        </tr>
+      `;
+    }).join('') || '<tr><td colspan="6" class="text-center text-muted">Belum ada data absensi siswa.</td></tr>';
+
+    container.innerHTML = `
+      <div class="card" style="margin-bottom:20px;">
+        <h3 class="card-title">Rekapan hari ini</h3>
+        <p class="text-muted">Tanggal: ${today.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+      </div>
+      <div class="card" style="margin-bottom:20px">
+        <div class="card-header">
+          <h3 class="card-title">Presensi Guru</h3>
+        </div>
+        <div class="table-responsive">
+          <table class="table">
+            <thead><tr><th>Nama Guru</th><th>Status</th><th>Datang</th><th>Pulang</th></tr></thead>
+            <tbody>${teacherRows}</tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title">Absensi Siswa per Kelas</h3>
+        </div>
+        <div class="table-responsive">
+          <table class="table">
+            <thead><tr><th>Kelas</th><th>H</th><th>S</th><th>I</th><th>A</th><th>Total</th></tr></thead>
+            <tbody>${studentSummary}</tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  },
   // ========== HELPERS ==========
   _closeModal(id) {
     document.getElementById(id).classList.remove('active');
   }
 };
 // Route registration
+Router.add('#/admin/attendance', c => AdminPages.renderAttendance(c));
 Router.add('#/admin/characters', c => AdminPages.renderCharacters(c));
 Router.add('#/admin/users', c => AdminPages.renderUsers(c));
 Router.add('#/admin/classes', c => AdminPages.renderClasses(c));
