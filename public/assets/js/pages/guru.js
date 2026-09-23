@@ -2,9 +2,80 @@
 // Fitur: melihat kelas yang diampu, penilaian karakter tap-to-rate,
 // catatan observasi, dan riwayat observasi.
 const GuruPages = {
-  // ========== DASHBOARD GURU ==========
+  // ========== BERANDA (Dasbor Universal) ==========
   async renderDashboard(container) {
-    Router.setTitle('Beranda guru', 'Pilih kelas untuk memulai penilaian.');
+    Router.setTitle('Beranda', 'Selamat datang di Dasbor Digital Sekolah.');
+    
+    // Ambil data hari ini
+    const today = new Date();
+    const dateStr = today.toISOString().slice(0, 10);
+    const timeStr = today.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+    
+    // Cek status presensi guru hari ini (aman jika belum ada rule)
+    let attStatus = 'Belum Presensi';
+    let attClass = 'badge-warning';
+    try {
+      const myAtt = await DB.getTeacherAttendance(dateStr, Auth.currentUser.uid);
+      if (myAtt) {
+        if (myAtt.time_out) {
+          attStatus = 'Sudah Pulang (' + myAtt.time_out + ')';
+          attClass = 'badge-success';
+        } else if (myAtt.time_in) {
+          attStatus = 'Sudah Datang (' + myAtt.time_in + ')';
+          attClass = 'badge-success';
+        }
+      }
+    } catch (e) {
+      // Jika rule belum di-deploy, tampilkan status default
+    }
+
+    container.innerHTML = `
+      <div class="card" style="margin-bottom: 20px; background: linear-gradient(135deg, #10B981 0%, #059669 100%); color: white; border: none; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.2);">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <p style="margin: 0; font-size: 14px; opacity: 0.9;">${today.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+            <h2 style="margin: 4px 0 0 0; font-size: 24px; font-weight: 700;">${timeStr}</h2>
+          </div>
+          <div style="text-align: right;">
+            <p style="margin: 0; font-size: 13px; opacity: 0.9;">Status Kehadiran</p>
+            <span class="badge" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.4); margin-top: 4px;">${attStatus}</span>
+          </div>
+        </div>
+      </div>
+
+      <h3 style="font-size: 16px; margin-bottom: 12px; color: #374151;">Aksi Cepat</h3>
+      <div class="card-grid" style="grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); margin-bottom: 24px;">
+        <div class="card" style="text-align: center; cursor: pointer; padding: 16px 12px;" onclick="window.location.hash='#/guru/attendance'">
+          <div style="width: 48px; height: 48px; background: #ECFDF5; color: #10B981; border-radius: 12px; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px auto;">
+            <i class="ph ph-map-pin" style="font-size: 24px;"></i>
+          </div>
+          <h4 style="margin: 0; font-size: 14px;">Presensi Saya</h4>
+        </div>
+        <div class="card" style="text-align: center; cursor: pointer; padding: 16px 12px;" onclick="window.location.hash='#/guru/student-attendance'">
+          <div style="width: 48px; height: 48px; background: #EFF6FF; color: #3B82F6; border-radius: 12px; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px auto;">
+            <i class="ph ph-users-three" style="font-size: 24px;"></i>
+          </div>
+          <h4 style="margin: 0; font-size: 14px;">Absensi Siswa</h4>
+        </div>
+        <div class="card" style="text-align: center; cursor: pointer; padding: 16px 12px;" onclick="window.location.hash='#/guru/classes'">
+          <div style="width: 48px; height: 48px; background: #FEF2F2; color: #EF4444; border-radius: 12px; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px auto;">
+            <i class="ph ph-star" style="font-size: 24px;"></i>
+          </div>
+          <h4 style="margin: 0; font-size: 14px;">E-Rapor</h4>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 style="font-size: 16px; margin: 0 0 12px 0; color: #374151; display: flex; align-items: center; gap: 8px;">
+          <i class="ph ph-megaphone" style="color: #F59E0B;"></i> Papan Informasi
+        </h3>
+        <p class="text-muted" style="font-size: 14px; margin: 0;">Belum ada pengumuman baru dari sekolah.</p>
+      </div>
+    `;
+  },
+  // ========== KELAS SAYA (Untuk E-Rapor) ==========
+  async renderClasses(container) {
+    Router.setTitle('Kelas Saya', 'Pilih kelas untuk menilai karakter dan akademik.');
     const classes = await DB.getClasses();
     const classArr = DB.toArray(classes).filter(c => c.teacherId === Auth.currentUser.uid);
     const students = await DB.getAllStudents();
@@ -23,7 +94,7 @@ const GuruPages = {
           </div>
           <p class="text-muted">${count} siswa terdaftar</p>
           <div style="margin-top:14px;display:flex;gap:8px">
-            <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();window.location.hash='#/guru/assess/${c.id}'"><i class="ph ph-note-pencil"></i> Nilai</button>
+            <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();window.location.hash='#/guru/assess/${c.id}'"><i class="ph ph-note-pencil"></i> Nilai Karakter</button>
             <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();window.location.hash='#/guru/observe/${c.id}'"><i class="ph ph-chat-text"></i> Catatan</button>
           </div>
         </div>`;
@@ -706,9 +777,293 @@ const GuruPages = {
       };
     };
   },
+  // ========== PRESENSI GURU (Geofencing) ==========
+  async renderTeacherAttendance(container) {
+    Router.setTitle('Presensi Kehadiran', 'Rekam kehadiran harian Anda di area sekolah.');
+    container.innerHTML = `
+      <div class="card" style="text-align: center; padding: 32px 16px;">
+        <div id="geo-status-icon" style="width: 64px; height: 64px; background: #F3F4F6; color: #9CA3AF; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px auto; transition: all 0.3s ease;">
+          <i class="ph ph-spinner ph-spin" style="font-size: 32px;"></i>
+        </div>
+        <h3 id="geo-status-title" style="margin: 0 0 8px 0;">Mencari Lokasi...</h3>
+        <p id="geo-status-text" class="text-muted" style="margin: 0 0 24px 0; font-size: 14px;">Mohon tunggu dan pastikan GPS Anda aktif.</p>
+        
+        <div style="display: flex; gap: 12px; justify-content: center;">
+          <button id="btn-checkin" class="btn btn-primary" disabled><i class="ph ph-sign-in"></i> Presensi Datang</button>
+          <button id="btn-checkout" class="btn btn-outline" disabled><i class="ph ph-sign-out"></i> Presensi Pulang</button>
+        </div>
+      </div>
+      <div class="card" style="margin-top: 16px;">
+        <h4 style="margin: 0 0 12px 0; font-size: 14px;">Riwayat Hari Ini</h4>
+        <div id="att-history-container">
+          <p class="text-muted" style="font-size: 13px; margin: 0;">Memuat data...</p>
+        </div>
+      </div>
+    `;
+
+    const statusIcon = document.getElementById('geo-status-icon');
+    const statusTitle = document.getElementById('geo-status-title');
+    const statusText = document.getElementById('geo-status-text');
+    const btnCheckin = document.getElementById('btn-checkin');
+    const btnCheckout = document.getElementById('btn-checkout');
+    const histContainer = document.getElementById('att-history-container');
+
+    const today = new Date();
+    const dateStr = today.toISOString().slice(0, 10);
+    const teacherId = Auth.currentUser.uid;
+
+    // Load History
+    const loadHistory = async () => {
+      const myAtt = await DB.getTeacherAttendance(dateStr, teacherId);
+      if (!myAtt) {
+        histContainer.innerHTML = '<p class="text-muted" style="font-size: 13px; margin: 0;">Belum ada rekam presensi hari ini.</p>';
+      } else {
+        histContainer.innerHTML = `
+          <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #E5E7EB; padding-bottom: 8px; margin-bottom: 8px;">
+            <span class="text-muted" style="font-size: 13px;">Datang</span>
+            <strong style="font-size: 13px;">${myAtt.time_in || '-'}</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span class="text-muted" style="font-size: 13px;">Pulang</span>
+            <strong style="font-size: 13px;">${myAtt.time_out || '-'}</strong>
+          </div>
+        `;
+        if (myAtt.time_in && !myAtt.time_out) {
+          btnCheckin.style.display = 'none';
+        } else if (myAtt.time_in && myAtt.time_out) {
+          btnCheckin.style.display = 'none';
+          btnCheckout.style.display = 'none';
+          statusTitle.innerText = "Presensi Selesai";
+          statusText.innerText = "Anda sudah menyelesaikan presensi hari ini.";
+        }
+      }
+    };
+    await loadHistory();
+
+    // Geolocation Logic
+    const settings = await DB.getSchoolSettings();
+    const schoolLat = settings.location.lat;
+    const schoolLng = settings.location.lng;
+    const maxRadius = settings.location.radius_meters || 40;
+
+    // Haversine formula
+    const getDistance = (lat1, lon1, lat2, lon2) => {
+      const R = 6371e3; // metres
+      const p1 = lat1 * Math.PI/180;
+      const p2 = lat2 * Math.PI/180;
+      const dp = (lat2-lat1) * Math.PI/180;
+      const dl = (lon2-lon1) * Math.PI/180;
+      const a = Math.sin(dp/2) * Math.sin(dp/2) + Math.cos(p1) * Math.cos(p2) * Math.sin(dl/2) * Math.sin(dl/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      return R * c;
+    };
+
+    let currentLocation = null;
+
+    if (!navigator.geolocation) {
+      statusIcon.style.background = '#FEE2E2'; statusIcon.style.color = '#EF4444';
+      statusIcon.innerHTML = '<i class="ph ph-warning-circle" style="font-size: 32px;"></i>';
+      statusTitle.innerText = "GPS Tidak Didukung";
+      statusText.innerText = "Browser Anda tidak mendukung fitur lokasi.";
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        currentLocation = { lat: latitude, lng: longitude };
+        const dist = getDistance(schoolLat, schoolLng, latitude, longitude);
+        
+        if (dist <= maxRadius) {
+          statusIcon.style.background = '#D1FAE5'; statusIcon.style.color = '#10B981';
+          statusIcon.innerHTML = '<i class="ph ph-check-circle" style="font-size: 32px;"></i>';
+          statusTitle.innerText = "Berada di Area Sekolah";
+          statusText.innerText = `Jarak: ${Math.round(dist)} meter dari titik pusat.`;
+          btnCheckin.disabled = false;
+          btnCheckout.disabled = false;
+        } else {
+          statusIcon.style.background = '#FEF3C7'; statusIcon.style.color = '#F59E0B';
+          statusIcon.innerHTML = '<i class="ph ph-warning" style="font-size: 32px;"></i>';
+          statusTitle.innerText = "Di Luar Area";
+          statusText.innerText = `Anda berada ${Math.round(dist)} meter dari sekolah. (Toleransi: ${maxRadius}m)`;
+        }
+      },
+      (error) => {
+        statusIcon.style.background = '#FEE2E2'; statusIcon.style.color = '#EF4444';
+        statusIcon.innerHTML = '<i class="ph ph-warning-circle" style="font-size: 32px;"></i>';
+        statusTitle.innerText = "Akses Lokasi Ditolak";
+        statusText.innerText = "Izinkan akses lokasi pada browser untuk melakukan presensi.";
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+
+    const handlePresensi = async (type) => {
+      if (!currentLocation) return;
+      const btn = type === 'in' ? btnCheckin : btnCheckout;
+      btn.disabled = true;
+      btn.innerHTML = '<i class="ph ph-spinner ph-spin"></i> Memproses...';
+      
+      const timeStr = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+      const payload = type === 'in' 
+        ? { time_in: timeStr, location_in: currentLocation } 
+        : { time_out: timeStr, location_out: currentLocation };
+      
+      try {
+        await DB.saveTeacherAttendance(dateStr, teacherId, payload);
+        alert('Presensi berhasil dicatat.');
+        await loadHistory();
+      } catch (err) {
+        alert('Gagal mencatat presensi.');
+        btn.disabled = false;
+        btn.innerHTML = type === 'in' ? '<i class="ph ph-sign-in"></i> Presensi Datang' : '<i class="ph ph-sign-out"></i> Presensi Pulang';
+      }
+    };
+
+    btnCheckin.onclick = () => handlePresensi('in');
+    btnCheckout.onclick = () => handlePresensi('out');
+  },
+  
+  // ========== ABSENSI SISWA (Oleh Guru) ==========
+  async renderStudentAttendance(container) {
+    Router.setTitle('Absensi Siswa', 'Pilih kelas untuk mengabsen siswa hari ini.');
+    const classes = await DB.getClasses();
+    const classArr = DB.toArray(classes).filter(c => c.teacherId === Auth.currentUser.uid);
+    
+    if (!classArr.length) {
+      container.innerHTML = `<div class="card"><p class="text-muted">Anda belum ditugaskan sebagai wali kelas.</p></div>`;
+      return;
+    }
+    
+    const cards = classArr.map(c => `
+      <div class="card class-card" style="cursor: pointer; display: flex; align-items: center; justify-content: space-between;" onclick="window.location.hash='#/guru/student-attendance/${c.id}'">
+        <div>
+          <h3 class="card-title" style="margin: 0 0 4px 0;">${c.name}</h3>
+          <p class="text-muted" style="margin: 0; font-size: 13px;">Input Absensi Kelas</p>
+        </div>
+        <i class="ph ph-caret-right" style="color: #9CA3AF;"></i>
+      </div>
+    `).join('');
+    container.innerHTML = `<div class="card-grid">${cards}</div>`;
+  },
+
+  async renderStudentAttendanceInput(container, classId) {
+    const classes = await DB.getClasses();
+    const cls = classes[classId];
+    if (!cls) {
+      container.innerHTML = '<div class="card"><p class="error-text">Kelas tidak ditemukan.</p></div>';
+      return;
+    }
+
+    const today = new Date();
+    const dateStr = today.toISOString().slice(0, 10);
+    const dateDisplay = today.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    
+    Router.setTitle(`Absensi ${cls.name}`, dateDisplay);
+    
+    const studentData = await DB.getStudentsByClass(classId);
+    const studentArr = DB.toArray(studentData).sort((a, b) => a.name.localeCompare(b.name));
+    
+    if (!studentArr.length) {
+      container.innerHTML = `<div class="card"><p class="text-muted">Belum ada siswa di kelas ini.</p></div>`;
+      return;
+    }
+
+    const attData = await DB.getDailyStudentAttendance(dateStr, classId);
+
+    const rows = studentArr.map((s, idx) => {
+      const currentAtt = attData[s.id] || 'H'; // Default Hadir
+      return `
+        <div class="card" style="margin-bottom: 8px; padding: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+          <div style="flex: 1; min-width: 150px;">
+            <p style="margin: 0; font-weight: 500; font-size: 14px;">${idx + 1}. ${s.name}</p>
+          </div>
+          <div class="att-toggle-group" data-stu="${s.id}" style="display: flex; background: #F3F4F6; border-radius: 8px; padding: 2px;">
+            <button class="att-btn ${currentAtt === 'H' ? 'active-h' : ''}" data-val="H" style="border: none; background: transparent; padding: 6px 12px; border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer; color: #6B7280;">H</button>
+            <button class="att-btn ${currentAtt === 'S' ? 'active-s' : ''}" data-val="S" style="border: none; background: transparent; padding: 6px 12px; border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer; color: #6B7280;">S</button>
+            <button class="att-btn ${currentAtt === 'I' ? 'active-i' : ''}" data-val="I" style="border: none; background: transparent; padding: 6px 12px; border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer; color: #6B7280;">I</button>
+            <button class="att-btn ${currentAtt === 'A' ? 'active-a' : ''}" data-val="A" style="border: none; background: transparent; padding: 6px 12px; border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer; color: #6B7280;">A</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    // Inject CSS khusus untuk toggle absensi agar tidak mengganggu global
+    const style = `
+      <style>
+        .att-btn { transition: all 0.2s; }
+        .att-btn.active-h { background: #10B981; color: white !important; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+        .att-btn.active-s { background: #3B82F6; color: white !important; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+        .att-btn.active-i { background: #F59E0B; color: white !important; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+        .att-btn.active-a { background: #EF4444; color: white !important; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+      </style>
+    `;
+
+    container.innerHTML = `
+      ${style}
+      <div style="margin-bottom:16px"><a href="#/guru/student-attendance" class="btn btn-outline"><i class="ph ph-arrow-left"></i> Kembali</a></div>
+      <div class="card" style="margin-bottom: 16px; padding: 12px; background: #F8FAFC;">
+        <p style="margin: 0; font-size: 13px; color: #64748B;">Ketuk inisial untuk mengubah status: <strong>H</strong> (Hadir), <strong>S</strong> (Sakit), <strong>I</strong> (Izin), <strong>A</strong> (Alpa).</p>
+      </div>
+      <div id="student-list-container">
+        ${rows}
+      </div>
+      <div style="position: sticky; bottom: 16px; margin-top: 24px; z-index: 100;">
+        <button id="btn-save-att" class="btn btn-primary" style="width: 100%; padding: 14px; font-size: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+          <i class="ph ph-floppy-disk"></i> Simpan Absensi
+        </button>
+      </div>
+    `;
+
+    // Event delegation for toggles
+    document.getElementById('student-list-container').addEventListener('click', (e) => {
+      if (e.target.classList.contains('att-btn')) {
+        const group = e.target.closest('.att-toggle-group');
+        group.querySelectorAll('.att-btn').forEach(b => {
+          b.classList.remove('active-h', 'active-s', 'active-i', 'active-a');
+        });
+        const val = e.target.dataset.val;
+        e.target.classList.add(`active-${val.toLowerCase()}`);
+      }
+    });
+
+    document.getElementById('btn-save-att').onclick = async (e) => {
+      const btn = e.target;
+      btn.disabled = true;
+      btn.innerHTML = '<i class="ph ph-spinner ph-spin"></i> Menyimpan...';
+      
+      const payload = {};
+      document.querySelectorAll('.att-toggle-group').forEach(group => {
+        const stuId = group.dataset.stu;
+        const activeBtn = group.querySelector('.att-btn[class*="active-"]');
+        if (activeBtn) {
+          payload[stuId] = activeBtn.dataset.val;
+        }
+      });
+
+      try {
+        await DB.saveDailyStudentAttendance(dateStr, classId, payload);
+        btn.innerHTML = '<i class="ph ph-check"></i> Berhasil Disimpan';
+        btn.style.background = '#10B981';
+        btn.style.borderColor = '#10B981';
+        setTimeout(() => {
+          btn.disabled = false;
+          btn.innerHTML = '<i class="ph ph-floppy-disk"></i> Simpan Absensi';
+          btn.style.background = '';
+          btn.style.borderColor = '';
+        }, 2000);
+      } catch (err) {
+        alert('Gagal menyimpan absensi.');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="ph ph-floppy-disk"></i> Simpan Absensi';
+      }
+    };
+  }
 };
 // Route registration
-Router.add('#/guru/classes', c => GuruPages.renderDashboard(c));
+Router.add('#/guru/classes', c => GuruPages.renderClasses(c));
+Router.add('#/guru/attendance', c => GuruPages.renderTeacherAttendance(c));
+Router.add('#/guru/student-attendance', c => GuruPages.renderStudentAttendance(c));
+Router.add('#/guru/student-attendance/:id', (c, id) => GuruPages.renderStudentAttendanceInput(c, id));
 Router.add('#/guru/assess/:id', (c, id) => GuruPages.renderAssessment(c, id));
 Router.add('#/guru/academic', c => GuruPages.renderAcademicGrades(c));
 Router.add('#/guru/additional', c => GuruPages.renderAdditionalData(c));

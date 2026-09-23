@@ -101,6 +101,27 @@
       ".indexOn": ["studentId"],
       ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'guru' || root.child('users').child(auth.uid).child('role').val() === 'kepsek' || (query.orderByChild == 'studentId' && root.child('students').child(query.equalTo).child('parentId').val() == auth.uid))",
       ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'guru')"
+    },
+    "school_settings": {
+      ".read": "auth != null",
+      ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'"
+    },
+    "teacher_attendance": {
+      ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'kepsek')",
+      "$dateStr": {
+        "$teacherId": {
+          ".read": "auth != null && (auth.uid === $teacherId || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'kepsek')",
+          ".write": "auth != null && (auth.uid === $teacherId || root.child('users').child(auth.uid).child('role').val() === 'admin')"
+        }
+      }
+    },
+    "student_attendance_daily": {
+      ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'guru' || root.child('users').child(auth.uid).child('role').val() === 'kepsek')",
+      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'guru')"
+    },
+    "leave_requests": {
+      ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'guru' || root.child('users').child(auth.uid).child('role').val() === 'kepsek')",
+      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'guru')"
     }
   }
 }

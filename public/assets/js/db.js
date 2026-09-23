@@ -43,6 +43,36 @@ const DB = {
     if (!isDBReady()) return;
     await db.ref('settings').update(data);
   },
+  // --- SCHOOL SETTINGS (Global config) ---
+  async getSchoolSettings() {
+    if (!isDBReady()) return { location: { lat: -7.387195, lng: 112.759298, radius_meters: 40 } };
+    const snap = await db.ref('school_settings').once('value');
+    return snap.val() || { location: { lat: -7.387195, lng: 112.759298, radius_meters: 40 } };
+  },
+  async updateSchoolSettings(data) {
+    if (!isDBReady()) return;
+    await db.ref('school_settings').update(data);
+  },
+  // --- TEACHER ATTENDANCE ---
+  async getTeacherAttendance(dateStr, teacherId) {
+    if (!isDBReady()) return null;
+    const snap = await db.ref(`teacher_attendance/${dateStr}/${teacherId}`).once('value');
+    return snap.val();
+  },
+  async saveTeacherAttendance(dateStr, teacherId, data) {
+    if (!isDBReady()) return;
+    await db.ref(`teacher_attendance/${dateStr}/${teacherId}`).update(data);
+  },
+  // --- STUDENT ATTENDANCE (Daily per class) ---
+  async getDailyStudentAttendance(dateStr, classId) {
+    if (!isDBReady()) return {};
+    const snap = await db.ref(`student_attendance_daily/${dateStr}/${classId}`).once('value');
+    return snap.val() || {};
+  },
+  async saveDailyStudentAttendance(dateStr, classId, data) {
+    if (!isDBReady()) return;
+    await db.ref(`student_attendance_daily/${dateStr}/${classId}`).update(data);
+  },
   // --- CHARACTERS (Aspek/Indikator) ---
   async getCharacters() {
     if (!isDBReady()) return {};
