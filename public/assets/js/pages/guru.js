@@ -77,20 +77,25 @@ const GuruPages = {
   async renderClasses(container) {
     Router.setTitle('Kelas Saya', 'Pilih kelas untuk menilai karakter dan akademik.');
     const classes = await DB.getClasses();
-    const classArr = DB.toArray(classes).filter(c => c.teacherId === Auth.currentUser.uid);
+    const classArr = DB.toArray(classes).filter(c => {
+      const isWali = c.teacherId === Auth.currentUser.uid;
+      const isMapel = c.subjectTeachers && Object.values(c.subjectTeachers).includes(Auth.currentUser.uid);
+      return isWali || isMapel;
+    });
     const students = await DB.getAllStudents();
     const studentArr = DB.toArray(students);
     if (!classArr.length) {
-      container.innerHTML = `<div class="card"><p class="text-muted">Anda belum ditugaskan sebagai wali kelas manapun. Hubungi admin untuk mendapatkan akses.</p></div>`;
+      container.innerHTML = `<div class="card"><p class="text-muted">Anda belum ditugaskan mengajar di kelas manapun. Hubungi admin untuk mendapatkan akses.</p></div>`;
       return;
     }
     const cards = classArr.map(c => {
+      const isWali = c.teacherId === Auth.currentUser.uid;
       const count = studentArr.filter(s => s.classId === c.id).length;
       return `
         <div class="card class-card" onclick="window.location.hash='#/guru/assess/${c.id}'">
           <div class="card-header">
             <h3 class="card-title">${c.name}</h3>
-            <span class="badge badge-primary">Wali Kelas</span>
+            ${isWali ? '<span class="badge badge-primary">Wali Kelas</span>' : '<span class="badge badge-success">Guru Mapel</span>'}
           </div>
           <p class="text-muted">${count} siswa terdaftar</p>
           <div style="margin-top:14px;display:flex;gap:8px">
@@ -311,14 +316,20 @@ const GuruPages = {
       DB.getSubjects(),
       DB.getSettings()
     ]);
-    const classArr = DB.toArray(classes);
+    const uid = Auth.currentUser.uid;
+    const classArr = DB.toArray(classes).filter(c => {
+      const isWali = c.teacherId === uid;
+      const isMapel = c.subjectTeachers && Object.values(c.subjectTeachers).includes(uid);
+      return isWali || isMapel;
+    });
     const subArr = DB.toArray(subjects).sort((a, b) => (a.order || 0) - (b.order || 0));
+    
     if (!classArr.length || !subArr.length) {
-      container.innerHTML = `<div class="card"><p class="text-muted">Data kelas atau mata pelajaran belum tersedia.</p></div>`;
+      container.innerHTML = `<div class="card"><p class="text-muted">Data kelas atau mata pelajaran belum tersedia untuk Anda.</p></div>`;
       return;
     }
     const classOpts = classArr.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
-    const subOpts = subArr.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+    
     container.innerHTML = `
       <div class="card" style="margin-bottom:20px">
         <form id="filter-academic" class="inline-form" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
@@ -331,9 +342,8 @@ const GuruPages = {
           </div>
           <div class="form-group" style="margin-bottom:0;flex:1;min-width:200px">
             <label>Mata Pelajaran</label>
-            <select id="ac-subject" required>
+            <select id="ac-subject" required disabled>
               <option value="">— Pilih Mata Pelajaran —</option>
-              ${subOpts}
             </select>
           </div>
           <button type="submit" class="btn btn-primary"><i class="ph ph-magnifying-glass"></i> Tampilkan</button>
@@ -341,6 +351,33 @@ const GuruPages = {
       </div>
       <div id="academic-container"></div>
     `;
+
+    document.getElementById('ac-class').addEventListener('change', (e) => {
+      const classId = e.target.value;
+      const subSelect = document.getElementById('ac-subject');
+      subSelect.innerHTML = '<option value="">— Pilih Mata Pelajaran —</option>';
+      if (!classId) {
+        subSelect.disabled = true;
+        return;
+      }
+      
+      const cls = classArr.find(c => c.id === classId);
+      const isWali = cls.teacherId === uid;
+      
+      let availableSubjects = [];
+      if (isWali) {
+        availableSubjects = subArr;
+      } else {
+        const mySubjectIds = Object.keys(cls.subjectTeachers || {}).filter(subId => cls.subjectTeachers[subId] === uid);
+        availableSubjects = subArr.filter(s => mySubjectIds.includes(s.id));
+      }
+      
+      availableSubjects.forEach(s => {
+        subSelect.innerHTML += `<option value="${s.id}">${s.name}</option>`;
+      });
+      subSelect.disabled = availableSubjects.length === 0;
+    });
+
     document.getElementById('filter-academic').onsubmit = async (e) => {
       e.preventDefault();
       const classId = document.getElementById('ac-class').value;

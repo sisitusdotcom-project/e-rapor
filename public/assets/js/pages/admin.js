@@ -475,8 +475,14 @@ const AdminPages = {
 
     container.querySelectorAll('[data-del-cls]').forEach(btn => {
       btn.onclick = async () => {
-        if (!confirm('Hapus kelas ini? Siswa di kelas ini tidak akan terhapus.')) return;
-        await DB.deleteClass(btn.dataset.delCls);
+        const classId = btn.dataset.delCls;
+        const studentsInClass = await DB.getStudentsByClass(classId);
+        if (Object.keys(studentsInClass || {}).length > 0) {
+          alert('Tidak dapat menghapus kelas karena masih ada siswa yang terdaftar di dalamnya. Silakan pindahkan atau hapus siswa terlebih dahulu.');
+          return;
+        }
+        if (!confirm('Yakin ingin menghapus kelas ini secara permanen?')) return;
+        await DB.deleteClass(classId);
         this.renderClasses(container);
       };
     });
