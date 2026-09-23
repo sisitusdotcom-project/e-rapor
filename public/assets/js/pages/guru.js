@@ -898,8 +898,8 @@ const GuruPages = {
 
     // Geolocation Logic
     const settings = await DB.getSchoolSettings();
-    const schoolLat = Number(settings.location.lat ?? -7.376568);
-    const schoolLng = Number(settings.location.lng ?? 112.750517);
+    const schoolLat = Number(settings.location.lat ?? -7.402655);
+    const schoolLng = Number(settings.location.lng ?? 112.744400);
     const maxRadius = Number(settings.location.radius_meters || 60);
 
     // Haversine formula
