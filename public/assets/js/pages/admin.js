@@ -19,62 +19,62 @@ const AdminPages = {
     const guruCount = userArr.filter(u => u.role === AppConfig.ROLES.GURU).length;
     const ortuCount = userArr.filter(u => u.role === AppConfig.ROLES.ORTU).length;
     container.innerHTML = `
-      <section class="card-grid" style="margin-bottom:24px">
+      <section class="card-grid section-spacer">
         <div class="card stat-card">
-          <div class="stat-icon" style="background:var(--primary-light);color:var(--primary)"><i class="ph ph-student"></i></div>
+          <div class="stat-icon stat-icon--primary"><i class="ph ph-student"></i></div>
           <div><p class="stat-value">${studentArr.length}</p><p class="stat-label text-muted">Siswa terdaftar</p></div>
         </div>
         <div class="card stat-card">
-          <div class="stat-icon" style="background:var(--success-bg);color:var(--success)"><i class="ph ph-chalkboard-teacher"></i></div>
+          <div class="stat-icon stat-icon--success"><i class="ph ph-chalkboard-teacher"></i></div>
           <div><p class="stat-value">${guruCount}</p><p class="stat-label text-muted">Guru aktif</p></div>
         </div>
         <div class="card stat-card">
-          <div class="stat-icon" style="background:var(--warning-bg);color:var(--warning)"><i class="ph ph-books"></i></div>
+          <div class="stat-icon stat-icon--warning"><i class="ph ph-books"></i></div>
           <div><p class="stat-value">${classArr.length}</p><p class="stat-label text-muted">Kelas</p></div>
         </div>
         <div class="card stat-card">
-          <div class="stat-icon" style="background:var(--danger-bg);color:var(--danger-text)"><i class="ph ph-users"></i></div>
+          <div class="stat-icon stat-icon--danger"><i class="ph ph-users"></i></div>
           <div><p class="stat-value">${ortuCount}</p><p class="stat-label text-muted">Orang tua/wali</p></div>
         </div>
       </section>
 
-      <section class="card" style="margin-bottom:24px">
+      <section class="card section-spacer">
         <div class="card-header">
           <h3 class="card-title">Pengaturan tahun ajaran</h3>
         </div>
         <form id="form-settings" class="inline-form">
-          <div class="form-group" style="margin-bottom:12px">
+          <div class="form-group compact-field">
             <label>Tahun ajaran aktif</label>
             <input id="set-year" value="${settings.currentAcademicYear}" placeholder="Contoh: 2026/2027">
           </div>
-          <div class="form-group" style="margin-bottom:12px">
+          <div class="form-group compact-field">
             <label>Semester</label>
             <select id="set-sem">
               <option value="1" ${settings.currentSemester === '1' ? 'selected' : ''}>Semester 1</option>
               <option value="2" ${settings.currentSemester === '2' ? 'selected' : ''}>Semester 2</option>
             </select>
           </div>
-          <div class="form-group" style="margin-bottom:12px">
+          <div class="form-group compact-field">
             <label>Jam masuk mulai</label>
             <input id="set-checkin-start" type="time" value="${attendanceRules.checkInStart || '07:00'}">
           </div>
-          <div class="form-group" style="margin-bottom:12px">
+          <div class="form-group compact-field">
             <label>Jam masuk selesai</label>
             <input id="set-checkin-end" type="time" value="${attendanceRules.checkInEnd || '09:00'}">
           </div>
-          <div class="form-group" style="margin-bottom:12px">
+          <div class="form-group compact-field">
             <label>Jam pulang mulai</label>
             <input id="set-checkout-start" type="time" value="${attendanceRules.checkOutStart || '15:00'}">
           </div>
-          <div class="form-group" style="margin-bottom:12px">
+          <div class="form-group compact-field">
             <label>Jam pulang selesai</label>
             <input id="set-checkout-end" type="time" value="${attendanceRules.checkOutEnd || '17:00'}">
           </div>
-          <div class="form-group" style="margin-bottom:12px">
+          <div class="form-group compact-field">
             <label>Tanggal absensi mulai</label>
             <input id="set-date-start" type="date" value="${attendanceRules.attendanceStartDate || ''}">
           </div>
-          <div class="form-group" style="margin-bottom:12px">
+          <div class="form-group compact-field">
             <label>Tanggal absensi selesai</label>
             <input id="set-date-end" type="date" value="${attendanceRules.attendanceEndDate || ''}">
           </div>
@@ -87,7 +87,7 @@ const AdminPages = {
           <h3 class="card-title">Indikator karakter aktif</h3>
           <span class="badge badge-primary">${charArr.filter(c => c.active !== false).length} aktif</span>
         </div>
-        <p class="text-muted" style="font-size:13px">Kelola di menu <strong>Indikator Karakter</strong> pada sidebar.</p>
+        <p class="text-muted soft-note">Kelola di menu <strong>Indikator Karakter</strong> pada sidebar.</p>
       </section>
     `;
     document.getElementById('form-settings').addEventListener('submit', async (e) => {
@@ -137,7 +137,7 @@ const AdminPages = {
           <button class="btn btn-primary" id="btn-add-char"><i class="ph ph-plus"></i> Tambah</button>
         </div>
         <div class="table-responsive">
-          <table class="table"><thead><tr><th style="width:50px">No</th><th>Nama</th><th>Status</th><th style="width:100px">Aksi</th></tr></thead>
+          <table class="table"><thead><tr><th class="table-col-sm">No</th><th>Nama</th><th>Status</th><th class="table-col-md">Aksi</th></tr></thead>
           <tbody>${rows}</tbody></table>
         </div>
       </div>
@@ -169,7 +169,7 @@ const AdminPages = {
         order: parseInt(document.getElementById('char-order').value) || 1,
         active: document.getElementById('char-active').value === 'true'
       });
-      this._closeModal('modal-char');
+      App.closeModal('modal-char');
       this.renderCharacters(container);
     };
   },
@@ -179,7 +179,7 @@ const AdminPages = {
       <div class="modal">
         <div class="modal-header">
           <h3 class="modal-title" id="char-modal-title">Tambah indikator</h3>
-          <button class="btn-icon" onclick="AdminPages._closeModal('modal-char')"><i class="ph ph-x"></i></button>
+          <button class="btn-icon" onclick="App.closeModal('modal-char')"><i class="ph ph-x"></i></button>
         </div>
         <form id="form-char">
           <div class="modal-body">
@@ -198,7 +198,7 @@ const AdminPages = {
             </div>
           </div>
           <div class="modal-footer">
-            <button type="button" class="btn btn-outline" onclick="AdminPages._closeModal('modal-char')">Batal</button>
+            <button type="button" class="btn btn-outline" onclick="App.closeModal('modal-char')">Batal</button>
             <button type="submit" class="btn btn-primary">Simpan</button>
           </div>
         </form>
@@ -211,7 +211,7 @@ const AdminPages = {
     document.getElementById('char-name').value = existing ? existing.name : '';
     document.getElementById('char-order').value = existing ? existing.order : (nextOrder || 1);
     document.getElementById('char-active').value = existing ? String(existing.active !== false) : 'true';
-    this._openModal('modal-char');
+    App.openModal('modal-char');
   },
   // ========== MANAJEMEN PENGGUNA ==========
   async renderUsers(container) {
@@ -258,7 +258,7 @@ const AdminPages = {
           document.getElementById('usr-password').placeholder = '(Kosongkan jika tidak diubah)';
           document.getElementById('usr-role').value = u.role;
           document.getElementById('usr-password').removeAttribute('required');
-          this._openModal('modal-usr');
+          App.openModal('modal-usr');
         };
       });
       container.querySelectorAll('[data-del-usr]').forEach(btn => {
@@ -271,14 +271,14 @@ const AdminPages = {
     };
 
     container.innerHTML = `
-      <div class="card" style="margin-bottom:16px">
-        <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center; justify-content:space-between">
-          <div style="display:flex; gap:12px; flex:1; min-width:250px">
-            <div class="search-box" style="flex:1; position:relative">
-              <i class="ph ph-magnifying-glass" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted)"></i>
-              <input type="text" id="search-user" placeholder="Cari nama, username..." style="width:100%; padding-left:36px; height:40px; border-radius:8px; border:1px solid var(--border)">
+      <div class="card toolbar-panel">
+        <div class="toolbar-row">
+          <div class="toolbar-controls">
+            <div class="search-box">
+              <i class="ph ph-magnifying-glass"></i>
+              <input type="text" id="search-user" placeholder="Cari nama, username...">
             </div>
-            <select id="filter-role" style="height:40px; border-radius:8px; border:1px solid var(--border); padding:0 12px">
+            <select id="filter-role" class="toolbar-select">
               <option value="">Semua Peran</option>
               <option value="admin">Admin</option>
               <option value="guru">Guru</option>
@@ -291,7 +291,7 @@ const AdminPages = {
       </div>
       <div class="card">
         <div class="table-responsive">
-          <table class="table"><thead><tr><th>Nama / Email</th><th>Username</th><th>Peran</th><th style="width:100px">Aksi</th></tr></thead>
+          <table class="table"><thead><tr><th>Nama / Email</th><th>Username</th><th>Peran</th><th class="table-col-md">Aksi</th></tr></thead>
           <tbody id="tbody-users"></tbody></table>
         </div>
       </div>
@@ -299,7 +299,7 @@ const AdminPages = {
         <div class="modal">
           <div class="modal-header">
             <h3 class="modal-title" id="usr-modal-title">Tambah pengguna</h3>
-            <button class="btn-icon" onclick="AdminPages._closeModal('modal-usr')"><i class="ph ph-x"></i></button>
+            <button class="btn-icon" onclick="App.closeModal('modal-usr')"><i class="ph ph-x"></i></button>
           </div>
           <form id="form-usr">
             <div class="modal-body">
@@ -311,7 +311,7 @@ const AdminPages = {
               <div class="form-group"><label>Peran</label><select id="usr-role" required><option value="guru">Guru</option><option value="ortu">Orang Tua</option><option value="admin">Admin</option><option value="kepsek">Kepsek</option></select></div>
             </div>
             <div class="modal-footer">
-              <button type="button" class="btn btn-outline" onclick="AdminPages._closeModal('modal-usr')">Batal</button>
+              <button type="button" class="btn btn-outline" onclick="App.closeModal('modal-usr')">Batal</button>
               <button type="submit" class="btn btn-primary">Simpan</button>
             </div>
           </form>
@@ -336,7 +336,7 @@ const AdminPages = {
       document.getElementById('usr-password').placeholder = '';
       document.getElementById('usr-role').value = 'guru';
       document.getElementById('usr-password').setAttribute('required', 'true');
-      this._openModal('modal-usr');
+      App.openModal('modal-usr');
     };
 
     document.getElementById('form-usr').onsubmit = async (e) => {
@@ -355,7 +355,7 @@ const AdminPages = {
       if (pwd) data.password = pwd;
       try {
         await DB.saveUser(id, data);
-        this._closeModal('modal-usr');
+        App.closeModal('modal-usr');
         this.renderUsers(container);
       } catch (err) {
         alert(err.message || 'Gagal menyimpan');
@@ -384,7 +384,7 @@ const AdminPages = {
           <td><strong>${c.name}</strong></td>
           <td>${teacher ? teacher.name : '<span class="text-muted">Belum ditugaskan</span>'}</td>
           <td>${count} siswa</td>
-          <td class="action-cell" style="width:200px">
+          <td class="action-cell table-col-lg">
             <button class="btn btn-outline btn-sm" data-mapel-cls="${c.id}" title="Atur Guru Mapel"><i class="ph ph-books"></i> Mapel</button>
             <button class="btn btn-outline btn-sm" data-edit-cls="${c.id}" title="Edit Kelas"><i class="ph ph-pencil-simple"></i></button>
             <button class="btn btn-outline btn-sm" data-view-cls="${c.id}" title="Lihat Siswa"><i class="ph ph-eye"></i></button>
@@ -397,9 +397,9 @@ const AdminPages = {
     
     // Generate subjects dropdowns for mapel modal
     const mapelRows = subArr.map(sub => `
-      <div class="form-group" style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; border-bottom:1px solid #eee; padding-bottom:8px">
-        <label style="margin:0; width:40%">${sub.name}</label>
-        <select class="mapel-select" data-subject-id="${sub.id}" style="width:60%">
+      <div class="subject-editor-row">
+        <label>${sub.name}</label>
+        <select class="mapel-select" data-subject-id="${sub.id}">
           <option value="">— Default (Wali Kelas) —</option>
           ${guruOptions}
         </select>
@@ -422,7 +422,7 @@ const AdminPages = {
         <div class="modal">
           <div class="modal-header">
             <h3 class="modal-title" id="cls-modal-title">Tambah kelas</h3>
-            <button class="btn-icon" onclick="AdminPages._closeModal('modal-cls')"><i class="ph ph-x"></i></button>
+            <button class="btn-icon" onclick="App.closeModal('modal-cls')"><i class="ph ph-x"></i></button>
           </div>
           <form id="form-cls">
             <div class="modal-body">
@@ -440,7 +440,7 @@ const AdminPages = {
               </div>
             </div>
             <div class="modal-footer">
-              <button type="button" class="btn btn-outline" onclick="AdminPages._closeModal('modal-cls')">Batal</button>
+              <button type="button" class="btn btn-outline" onclick="App.closeModal('modal-cls')">Batal</button>
               <button type="submit" class="btn btn-primary">Simpan</button>
             </div>
           </form>
@@ -448,19 +448,19 @@ const AdminPages = {
       </div>
 
       <div class="modal-overlay" id="modal-mapel">
-        <div class="modal" style="max-width:500px">
+        <div class="modal">
           <div class="modal-header">
             <h3 class="modal-title" id="mapel-modal-title">Atur Guru Mata Pelajaran</h3>
-            <button class="btn-icon" onclick="AdminPages._closeModal('modal-mapel')"><i class="ph ph-x"></i></button>
+            <button class="btn-icon" onclick="App.closeModal('modal-mapel')"><i class="ph ph-x"></i></button>
           </div>
           <form id="form-mapel">
-            <div class="modal-body" style="max-height:60vh; overflow-y:auto">
+            <div class="modal-body">
               <input type="hidden" id="mapel-cls-id">
-              <p class="text-muted" style="margin-bottom:20px; font-size:13px">Tentukan guru khusus untuk mata pelajaran tertentu. Jika dikosongkan, hak akses pengisian nilai akan dikembalikan ke Wali Kelas.</p>
+              <p class="text-muted soft-note">Tentukan guru khusus untuk mata pelajaran tertentu. Jika dikosongkan, hak akses pengisian nilai akan dikembalikan ke Wali Kelas.</p>
               ${mapelRows}
             </div>
             <div class="modal-footer">
-              <button type="button" class="btn btn-outline" onclick="AdminPages._closeModal('modal-mapel')">Batal</button>
+              <button type="button" class="btn btn-outline" onclick="App.closeModal('modal-mapel')">Batal</button>
               <button type="submit" class="btn btn-primary">Simpan Penugasan</button>
             </div>
           </form>
@@ -533,7 +533,7 @@ const AdminPages = {
         name: document.getElementById('cls-name').value.trim(),
         teacherId: document.getElementById('cls-teacher').value || null
       });
-      this._closeModal('modal-cls');
+      App.closeModal('modal-cls');
       this.renderClasses(container);
     };
 
@@ -550,7 +550,7 @@ const AdminPages = {
       });
       
       await DB.saveClassSubjectTeachers(id, subjectTeachers);
-      this._closeModal('modal-mapel');
+      App.closeModal('modal-mapel');
       this.renderClasses(container);
     };
   },
@@ -611,7 +611,7 @@ const AdminPages = {
           document.getElementById('stu-name').value = s.name;
           document.getElementById('stu-gender').value = s.gender || 'L';
           document.getElementById('stu-parent').value = s.parentId || '';
-          this._openModal('modal-stu');
+          App.openModal('modal-stu');
         };
       });
       container.querySelectorAll('[data-del-stu]').forEach(btn => {
@@ -626,15 +626,15 @@ const AdminPages = {
     const ortuOptions = ortuArr.map(p => `<option value="${p.id}">${p.name} (${p.username})</option>`).join('');
     
     container.innerHTML = `
-      <div style="margin-bottom:16px"><a href="#/admin/classes" class="btn btn-outline"><i class="ph ph-arrow-left"></i> Kembali ke kelas</a></div>
-      <div class="card" style="margin-bottom:16px">
-        <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center; justify-content:space-between">
-          <div style="display:flex; gap:12px; flex:1; min-width:250px">
-            <div class="search-box" style="flex:1; position:relative">
-              <i class="ph ph-magnifying-glass" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted)"></i>
-              <input type="text" id="search-student" placeholder="Cari nama atau NIS..." style="width:100%; padding-left:36px; height:40px; border-radius:8px; border:1px solid var(--border)">
+      <div class="toolbar-panel"><a href="#/admin/classes" class="btn btn-outline"><i class="ph ph-arrow-left"></i> Kembali ke kelas</a></div>
+      <div class="card toolbar-panel">
+        <div class="toolbar-row">
+          <div class="toolbar-controls">
+            <div class="search-box">
+              <i class="ph ph-magnifying-glass"></i>
+              <input type="text" id="search-student" placeholder="Cari nama atau NIS...">
             </div>
-            <select id="filter-gender" style="height:40px; border-radius:8px; border:1px solid var(--border); padding:0 12px">
+            <select id="filter-gender" class="toolbar-select">
               <option value="">Semua L/P</option>
               <option value="L">Laki-laki</option>
               <option value="P">Perempuan</option>
@@ -645,7 +645,7 @@ const AdminPages = {
       </div>
       <div class="card">
         <div class="table-responsive">
-          <table class="table"><thead><tr><th>NIS</th><th>Nama Siswa</th><th>L/P</th><th>Orang Tua</th><th style="width:100px">Aksi</th></tr></thead>
+          <table class="table"><thead><tr><th>NIS</th><th>Nama Siswa</th><th>L/P</th><th>Orang Tua</th><th class="table-col-md">Aksi</th></tr></thead>
           <tbody id="tbody-students"></tbody></table>
         </div>
       </div>
@@ -653,21 +653,21 @@ const AdminPages = {
         <div class="modal">
           <div class="modal-header">
             <h3 class="modal-title" id="stu-modal-title">Tambah siswa</h3>
-            <button class="btn-icon" onclick="AdminPages._closeModal('modal-stu')"><i class="ph ph-x"></i></button>
+            <button class="btn-icon" onclick="App.closeModal('modal-stu')"><i class="ph ph-x"></i></button>
           </div>
           <form id="form-stu">
             <div class="modal-body">
               <input type="hidden" id="stu-id">
-              <div style="display:flex; gap:12px">
-                <div class="form-group" style="flex:1"><label>NIS</label><input id="stu-nis" required></div>
-                <div class="form-group" style="flex:1"><label>NISN</label><input id="stu-nisn"></div>
+              <div class="form-split">
+                <div class="form-group"><label>NIS</label><input id="stu-nis" required></div>
+                <div class="form-group"><label>NISN</label><input id="stu-nisn"></div>
               </div>
               <div class="form-group"><label>Nama Lengkap</label><input id="stu-name" required></div>
               <div class="form-group"><label>Jenis Kelamin</label><select id="stu-gender"><option value="L">Laki-laki</option><option value="P">Perempuan</option></select></div>
               <div class="form-group"><label>Tautkan Orang Tua</label><select id="stu-parent"><option value="">— Tidak ditautkan —</option>${ortuOptions}</select></div>
             </div>
             <div class="modal-footer">
-              <button type="button" class="btn btn-outline" onclick="AdminPages._closeModal('modal-stu')">Batal</button>
+              <button type="button" class="btn btn-outline" onclick="App.closeModal('modal-stu')">Batal</button>
               <button type="submit" class="btn btn-primary">Simpan</button>
             </div>
           </form>
@@ -688,7 +688,7 @@ const AdminPages = {
       document.getElementById('stu-name').value = '';
       document.getElementById('stu-gender').value = 'L';
       document.getElementById('stu-parent').value = '';
-      this._openModal('modal-stu');
+      App.openModal('modal-stu');
     };
 
     document.getElementById('form-stu').onsubmit = async (e) => {
@@ -702,7 +702,7 @@ const AdminPages = {
         gender: document.getElementById('stu-gender').value,
         parentId: document.getElementById('stu-parent').value || null
       });
-      this._closeModal('modal-stu');
+      App.closeModal('modal-stu');
       this.renderStudents(container, classId);
     };
   },
@@ -789,7 +789,7 @@ const AdminPages = {
         category: document.getElementById('sub-category').value,
         order: parseInt(document.getElementById('sub-order').value) || 1
       });
-      this._closeModal('modal-sub');
+      App.closeModal('modal-sub');
       this.renderSubjects(container);
     };
   },
@@ -799,7 +799,7 @@ const AdminPages = {
       <div class="modal">
         <div class="modal-header">
           <h3 class="modal-title" id="sub-modal-title">Tambah mata pelajaran</h3>
-          <button class="btn-icon" onclick="AdminPages._closeModal('modal-sub')"><i class="ph ph-x"></i></button>
+          <button class="btn-icon" onclick="App.closeModal('modal-sub')"><i class="ph ph-x"></i></button>
         </div>
         <form id="form-sub">
           <div class="modal-body">
@@ -823,7 +823,7 @@ const AdminPages = {
             </div>
           </div>
           <div class="modal-footer">
-            <button type="button" class="btn btn-outline" onclick="AdminPages._closeModal('modal-sub')">Batal</button>
+            <button type="button" class="btn btn-outline" onclick="App.closeModal('modal-sub')">Batal</button>
             <button type="submit" class="btn btn-primary">Simpan</button>
           </div>
         </form>
@@ -895,7 +895,7 @@ const AdminPages = {
         order: parseInt(document.getElementById('eks-order').value) || 1,
         teacherId: document.getElementById('eks-teacher').value || null
       });
-      this._closeModal('modal-eks');
+      App.closeModal('modal-eks');
       this.renderExtracurriculars(container);
     };
   },
@@ -905,7 +905,7 @@ const AdminPages = {
       <div class="modal">
         <div class="modal-header">
           <h3 class="modal-title" id="eks-modal-title">Tambah ekstrakurikuler</h3>
-          <button class="btn-icon" onclick="AdminPages._closeModal('modal-eks')"><i class="ph ph-x"></i></button>
+          <button class="btn-icon" onclick="App.closeModal('modal-eks')"><i class="ph ph-x"></i></button>
         </div>
         <form id="form-eks">
           <div class="modal-body">
@@ -920,7 +920,7 @@ const AdminPages = {
             </div>
           </div>
           <div class="modal-footer">
-            <button type="button" class="btn btn-outline" onclick="AdminPages._closeModal('modal-eks')">Batal</button>
+            <button type="button" class="btn btn-outline" onclick="App.closeModal('modal-eks')">Batal</button>
             <button type="submit" class="btn btn-primary">Simpan</button>
           </div>
         </form>
@@ -1077,15 +1077,7 @@ const AdminPages = {
     await buildTable(defaultDate);
   },
   // ========== HELPERS ==========
-  _openModal(id) {
-    const modal = document.getElementById(id);
-    if (modal) modal.classList.add('active');
-  },
 
-  _closeModal(id) {
-    const modal = document.getElementById(id);
-    if (modal) modal.classList.remove('active');
-  }
 };
 // Route registration
 Router.add('#/admin/attendance', c => AdminPages.renderAttendance(c));

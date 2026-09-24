@@ -261,11 +261,18 @@
   }
 }
 
-@media (max-width:1023px) {
-  .mobile-header {
-    display: flex
-  }
+.mobile-header {
+  display: flex
+}
 
+@media (min-width:1024px) {
+  .mobile-header,
+  .mobile-only {
+    display: none !important
+  }
+}
+
+@media (max-width:1023px) {
   .sidebar {
     transform: translateX(-100%)
   }
@@ -289,9 +296,7 @@
 }
 
 @media (min-width:1024px) {
-
-  .mobile-header,
-  .mobile-only {
-    display: none !important
+  .sidebar {
+    transform: translateX(0)
   }
 }

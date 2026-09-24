@@ -33,7 +33,7 @@ const Router = {
       el.classList.toggle('active', el.getAttribute('href') === hash);
     });
 
-    container.innerHTML = '<div class="text-center text-muted" style="padding: 40px;"><div class="loader" style="margin:0 auto 16px"></div>Memuat halaman...</div>';
+    container.innerHTML = '<div class="text-center text-muted loading-state"><div class="loader loading-state__loader"></div>Memuat halaman...</div>';
 
     const [path] = hash.split('?');
     let matchedHandler = this.routes[path];

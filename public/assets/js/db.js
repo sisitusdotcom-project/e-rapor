@@ -55,6 +55,10 @@ const DB = {
   async getAllUsers() {
     return this._readCollection('users', {});
   },
+  async getUsersByRole(role) {
+    const users = await this.getAllUsers();
+    return this.toArray(users).filter(u => u.role === role);
+  },
   async saveUser(uid, data) {
     if (!isDBReady()) return;
     await db.ref(`users/${uid}`).update(this._sanitizeUserPayload(data));
@@ -232,6 +236,14 @@ const DB = {
   // --- CLASSES ---
   async getClasses() {
     return this._readCollection('classes', {});
+  },
+  async getClassesForTeacher(teacherUid) {
+    const classes = await this.getClasses();
+    return this.toArray(classes).filter(c => {
+      const isWali = c.teacherId === teacherUid;
+      const isMapel = c.subjectTeachers && Object.values(c.subjectTeachers).includes(teacherUid);
+      return isWali || isMapel;
+    });
   },
   async saveClass(id, data) {
     if (!isDBReady()) return null;

@@ -7,7 +7,7 @@ const OrtuPages = {
     const studentArr = DB.toArray(myStudents);
     if (!studentArr.length) {
       container.innerHTML = `
-        <div class="card" style="margin-top:20px;text-align:center;padding:40px 20px;">
+        <div class="card panel-callout" style="margin-top:20px;text-align:center;padding:40px 20px;">
           <div style="font-size:48px;color:var(--text-muted);margin-bottom:16px"><i class="ph ph-users-three"></i></div>
           <h3 style="margin-bottom:8px">Akun belum terhubung</h3>
           <p class="text-muted">Silakan hubungi wali kelas atau admin sekolah untuk menautkan akun ini ke data anak Anda.</p>

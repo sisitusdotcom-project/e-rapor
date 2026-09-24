@@ -16,16 +16,7 @@ const GuruPages = {
     const today = new Date();
     const dateStr = today.toISOString().slice(0, 10);
     const timeStr = today.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-    const [classes, students, myAtt] = await Promise.all([
-      DB.getClasses(),
-      DB.getAllStudents(),
-      DB.getTeacherAttendance(dateStr, Auth.currentUser.uid)
-    ]);
-    const classArr = DB.toArray(classes).filter(c => {
-      const isWali = c.teacherId === Auth.currentUser.uid;
-      const isMapel = c.subjectTeachers && Object.values(c.subjectTeachers).includes(Auth.currentUser.uid);
-      return isWali || isMapel;
-    });
+    const [classArr, students, myAtt] = await Promise.all([DB.getClassesForTeacher(Auth.currentUser.uid), DB.getAllStudents(), DB.getTeacherAttendance(dateStr, Auth.currentUser.uid)]);
     const studentCount = DB.toArray(students).filter(s => classArr.some(c => c.id === s.classId)).length;
     let attStatus = 'Belum Presensi';
     let attClass = 'badge-warning';
@@ -40,73 +31,60 @@ const GuruPages = {
     }
 
     container.innerHTML = `
-      <div class="card" style="margin-bottom: 20px; background: linear-gradient(135deg, #10B981 0%, #059669 100%); color: white; border: none; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.2);">
-        <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
+      <div class="card hero-panel">
+        <div class="hero-panel__inner">
           <div>
-            <p style="margin: 0; font-size: 14px; opacity: 0.9;">${today.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
-            <h2 style="margin: 4px 0 0 0; font-size: 24px; font-weight: 700;">${timeStr}</h2>
+            <p class="hero-panel__meta">${today.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+            <h2 class="hero-panel__time">${timeStr}</h2>
           </div>
-          <div style="text-align: right;">
-            <p style="margin: 0; font-size: 13px; opacity: 0.9;">Status Kehadiran</p>
-            <span class="badge ${attClass}" style="margin-top: 4px;">${attStatus}</span>
+          <div class="hero-panel__status">
+            <p class="hero-panel__meta">Status Kehadiran</p>
+            <span class="badge ${attClass}">${attStatus}</span>
           </div>
         </div>
       </div>
 
-      <section class="card-grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom: 24px;">
+      <section class="card-grid section-spacer">
         <div class="card stat-card">
-          <div class="stat-icon" style="background:#ECFDF5;color:#10B981"><i class="ph ph-map-pin"></i></div>
+          <div class="stat-icon stat-icon--success"><i class="ph ph-map-pin"></i></div>
           <div><p class="stat-value">${myAtt ? (myAtt.time_in ? '✓' : '—') : '—'}</p><p class="stat-label text-muted">Datang</p></div>
         </div>
         <div class="card stat-card">
-          <div class="stat-icon" style="background:#EFF6FF;color:#3B82F6"><i class="ph ph-users-three"></i></div>
+          <div class="stat-icon stat-icon--primary"><i class="ph ph-users-three"></i></div>
           <div><p class="stat-value">${studentCount}</p><p class="stat-label text-muted">Siswa di kelas saya</p></div>
         </div>
         <div class="card stat-card">
-          <div class="stat-icon" style="background:#FEF2F2;color:#EF4444"><i class="ph ph-chalkboard-teacher"></i></div>
+          <div class="stat-icon stat-icon--danger"><i class="ph ph-chalkboard-teacher"></i></div>
           <div><p class="stat-value">${classArr.length}</p><p class="stat-label text-muted">Kelas terlibat</p></div>
         </div>
       </section>
 
-      <h3 style="font-size: 16px; margin-bottom: 12px; color: #374151;">Aksi Cepat</h3>
-      <div class="card-grid" style="grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); margin-bottom: 24px;">
-        <div class="card" style="text-align: center; cursor: pointer; padding: 16px 12px;" onclick="window.location.hash='#/guru/attendance'">
-          <div style="width: 48px; height: 48px; background: #ECFDF5; color: #10B981; border-radius: 12px; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px auto;">
-            <i class="ph ph-map-pin" style="font-size: 24px;"></i>
-          </div>
-          <h4 style="margin: 0; font-size: 14px;">Presensi Saya</h4>
+      <h3 class="card-title">Aksi Cepat</h3>
+      <div class="quick-grid section-spacer">
+        <div class="card quick-action quick-action--success" onclick="window.location.hash='#/guru/attendance'">
+          <div class="quick-action-icon"><i class="ph ph-map-pin"></i></div>
+          <h4 class="quick-action-title">Presensi Saya</h4>
         </div>
-        <div class="card" style="text-align: center; cursor: pointer; padding: 16px 12px;" onclick="window.location.hash='#/guru/student-attendance'">
-          <div style="width: 48px; height: 48px; background: #EFF6FF; color: #3B82F6; border-radius: 12px; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px auto;">
-            <i class="ph ph-users-three" style="font-size: 24px;"></i>
-          </div>
-          <h4 style="margin: 0; font-size: 14px;">Absensi Siswa</h4>
+        <div class="card quick-action quick-action--info" onclick="window.location.hash='#/guru/student-attendance'">
+          <div class="quick-action-icon"><i class="ph ph-users-three"></i></div>
+          <h4 class="quick-action-title">Absensi Siswa</h4>
         </div>
-        <div class="card" style="text-align: center; cursor: pointer; padding: 16px 12px;" onclick="window.location.hash='#/guru/classes'">
-          <div style="width: 48px; height: 48px; background: #FEF2F2; color: #EF4444; border-radius: 12px; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px auto;">
-            <i class="ph ph-star" style="font-size: 24px;"></i>
-          </div>
-          <h4 style="margin: 0; font-size: 14px;">E-Rapor</h4>
+        <div class="card quick-action quick-action--danger" onclick="window.location.hash='#/guru/classes'">
+          <div class="quick-action-icon"><i class="ph ph-star"></i></div>
+          <h4 class="quick-action-title">E-Rapor</h4>
         </div>
       </div>
 
-      <div class="card">
-        <h3 style="font-size: 16px; margin: 0 0 12px 0; color: #374151; display: flex; align-items: center; gap: 8px;">
-          <i class="ph ph-megaphone" style="color: #F59E0B;"></i> Papan Informasi
-        </h3>
-        <p class="text-muted" style="font-size: 14px; margin: 0;">Validasi lokasi dilakukan oleh server secara aman. Browser tidak menyimpan koordinat sekolah untuk keperluan validasi presensi.</p>
+      <div class="card panel-callout">
+        <h3 class="card-title info-banner"><i class="ph ph-megaphone"></i> Papan Informasi</h3>
+        <p class="text-muted soft-note">Validasi lokasi dilakukan oleh server secara aman. Browser tidak menyimpan koordinat sekolah untuk keperluan validasi presensi.</p>
       </div>
     `;
   },
   // ========== KELAS SAYA (Untuk E-Rapor) ==========
   async renderClasses(container) {
     Router.setTitle('Kelas Saya', 'Pilih kelas untuk menilai karakter dan akademik.');
-    const classes = await DB.getClasses();
-    const classArr = DB.toArray(classes).filter(c => {
-      const isWali = c.teacherId === Auth.currentUser.uid;
-      const isMapel = c.subjectTeachers && Object.values(c.subjectTeachers).includes(Auth.currentUser.uid);
-      return isWali || isMapel;
-    });
+    const classArr = await DB.getClassesForTeacher(Auth.currentUser.uid);
     const students = await DB.getAllStudents();
     const studentArr = DB.toArray(students);
     if (!classArr.length) {
@@ -123,7 +101,7 @@ const GuruPages = {
             ${isWali ? '<span class="badge badge-primary">Wali Kelas</span>' : '<span class="badge badge-success">Guru Mapel</span>'}
           </div>
           <p class="text-muted">${count} siswa terdaftar</p>
-          <div style="margin-top:14px;display:flex;gap:8px">
+          <div class="card-actions">
             <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();window.location.hash='#/guru/assess/${c.id}'"><i class="ph ph-note-pencil"></i> Nilai Karakter</button>
             <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();window.location.hash='#/guru/observe/${c.id}'"><i class="ph ph-chat-text"></i> Catatan</button>
           </div>
@@ -336,17 +314,7 @@ const GuruPages = {
   // ========== PENILAIAN AKADEMIK ==========
   async renderAcademicGrades(container) {
     Router.setTitle('Nilai Akademik', 'Input nilai akhir dan capaian kompetensi siswa.');
-    const [classes, subjects, settings] = await Promise.all([
-      DB.getClasses(),
-      DB.getSubjects(),
-      DB.getSettings()
-    ]);
-    const uid = Auth.currentUser.uid;
-    const classArr = DB.toArray(classes).filter(c => {
-      const isWali = c.teacherId === uid;
-      const isMapel = c.subjectTeachers && Object.values(c.subjectTeachers).includes(uid);
-      return isWali || isMapel;
-    });
+    const uid = Auth.currentUser.uid; const [classArr, subjects, settings] = await Promise.all([DB.getClassesForTeacher(uid), DB.getSubjects(), DB.getSettings()]);
     const subArr = DB.toArray(subjects).sort((a, b) => (a.order || 0) - (b.order || 0));
     
     if (!classArr.length || !subArr.length) {
@@ -669,7 +637,7 @@ const GuruPages = {
       <div class="modal">
         <div class="modal-header">
           <h3 class="modal-title" id="obs-title">Catatan perilaku</h3>
-          <button class="btn-icon" onclick="GuruPages._closeModal('modal-obs')"><i class="ph ph-x"></i></button>
+          <button class="btn-icon" onclick="App.closeModal('modal-obs')"><i class="ph ph-x"></i></button>
         </div>
         <form id="form-obs-modal">
           <input type="hidden" id="obs-stu-id">
@@ -681,7 +649,7 @@ const GuruPages = {
             <div class="form-group"><label>Catatan</label><textarea id="obs-note" rows="3" placeholder="Contoh: Mengerjakan tugas tepat waktu tanpa diingatkan."></textarea></div>
           </div>
           <div class="modal-footer">
-            <button type="button" class="btn btn-outline" onclick="GuruPages._closeModal('modal-obs')">Batal</button>
+            <button type="button" class="btn btn-outline" onclick="App.closeModal('modal-obs')">Batal</button>
             <button type="submit" class="btn btn-primary">Simpan</button>
           </div>
         </form>
@@ -709,11 +677,8 @@ const GuruPages = {
         date: today
       });
       btn.disabled = false;
-      GuruPages._closeModal('modal-obs');
+      App.closeModal('modal-obs');
     };
-  },
-  _closeModal(id) {
-    document.getElementById(id).classList.remove('active');
   },
 
   // ========== INPUT EKSTRAKURIKULER (Khusus Guru Pembina) ==========
@@ -1348,3 +1313,7 @@ Router.add('#/guru/additional', c => GuruPages.renderAdditionalData(c));
 Router.add('#/guru/observe/:id', (c, id) => GuruPages.renderObserveClass(c, id));
 Router.add('#/guru/observations', c => GuruPages.renderObservationHistory(c));
 Router.add('#/guru/ekskul/:id', (c, eksId) => GuruPages.renderEkskulInput(c, eksId));
+
+
+
+

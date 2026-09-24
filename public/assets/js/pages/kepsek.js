@@ -102,29 +102,29 @@ const KepsekPages = {
     }).join('') : '<tr><td colspan="4" class="text-center text-muted">Bagus! Tidak ada siswa yang terdeteksi memerlukan perhatian khusus.</td></tr>';
     // Stat cards
     container.innerHTML = `
-      <section class="card-grid" style="margin-bottom:24px">
+      <section class="card-grid section-spacer">
         <div class="card stat-card">
-          <div class="stat-icon" style="background:var(--primary-light);color:var(--primary)"><i class="ph ph-books"></i></div>
+          <div class="stat-icon stat-icon--primary"><i class="ph ph-books"></i></div>
           <div><p class="stat-value">${globalAcadAvg}</p><p class="stat-label text-muted">Rata-rata Akademik Sekolah</p></div>
         </div>
         <div class="card stat-card">
-          <div class="stat-icon" style="background:var(--success-bg);color:var(--success)"><i class="ph ph-check-circle"></i></div>
+          <div class="stat-icon stat-icon--success"><i class="ph ph-check-circle"></i></div>
           <div><p class="stat-value">${complianceRate}%</p><p class="stat-label text-muted">Progres Pengisian Rapor</p></div>
         </div>
         <div class="card stat-card">
-          <div class="stat-icon" style="background:var(--warning-bg);color:var(--warning)"><i class="ph ph-warning"></i></div>
+          <div class="stat-icon stat-icon--warning"><i class="ph ph-warning"></i></div>
           <div><p class="stat-value">${needsAttention}</p><p class="stat-label text-muted">Siswa Perlu Perhatian</p></div>
         </div>
         <div class="card stat-card">
-          <div class="stat-icon" style="background:var(--primary-light);color:var(--primary)"><i class="ph ph-student"></i></div>
+          <div class="stat-icon stat-icon--primary"><i class="ph ph-student"></i></div>
           <div><p class="stat-value">${studentArr.length}</p><p class="stat-label text-muted">Total Siswa Aktif</p></div>
         </div>
       </section>
 
-      <section class="card-grid" style="grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); align-items:start; gap:24px; margin-bottom:24px;">
-        <div class="card" style="border-top:4px solid var(--danger)">
-          <h3 class="card-title" style="margin-bottom:16px"><i class="ph ph-warning-circle" style="color:var(--danger)"></i> Daftar Siswa Perlu Perhatian Khusus</h3>
-          <p class="text-muted" style="font-size:13px; margin-bottom:16px">Daftar siswa dengan rata-rata karakter di bawah 2.5 atau memiliki catatan observasi "Perlu Bimbingan".</p>
+      <section class="card-grid section-spacer">
+        <div class="card card-accent-danger">
+          <h3 class="card-title section-spacer"><i class="ph ph-warning-circle" style="color:var(--danger)"></i> Daftar Siswa Perlu Perhatian Khusus</h3>
+          <p class="text-muted soft-note section-spacer">Daftar siswa dengan rata-rata karakter di bawah 2.5 atau memiliki catatan observasi "Perlu Bimbingan".</p>
           <div class="table-responsive">
             <table class="table">
               <thead>
@@ -136,7 +136,7 @@ const KepsekPages = {
         </div>
 
         <div class="card">
-          <h3 class="card-title" style="margin-bottom:16px">Rata-rata Karakter Sekolah — Sem ${sem}, ${year}</h3>
+          <h3 class="card-title section-spacer">Rata-rata Karakter Sekolah — Sem ${sem}, ${year}</h3>
           <div style="position:relative;width:100%;max-width:500px;margin:0 auto"><canvas id="chart-school"></canvas></div>
         </div>
       </section>
