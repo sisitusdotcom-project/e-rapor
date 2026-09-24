@@ -1,4 +1,46 @@
+const App = {
+  getDashboardRenderer() {
+    const renderers = {
+      [AppConfig.ROLES.ADMIN]: AdminPages.renderDashboard,
+      [AppConfig.ROLES.GURU]: GuruPages.renderDashboard,
+      [AppConfig.ROLES.KEPSEK]: KepsekPages.renderDashboard,
+      [AppConfig.ROLES.ORTU]: OrtuPages.renderDashboard
+    };
+
+    return renderers[Auth.currentRole] || null;
+  },
+
+  init() {
+    const menuButton = document.getElementById('btn-menu-toggle');
+    const closeButton = document.getElementById('btn-menu-close');
+    const sidebar = document.getElementById('sidebar');
+    const backdrop = document.getElementById('sidebar-backdrop');
+
+    const toggleMenu = () => {
+      if (!sidebar || !backdrop) return;
+      sidebar.classList.toggle('active');
+      backdrop.classList.toggle('active');
+    };
+
+    if (menuButton) menuButton.addEventListener('click', toggleMenu);
+    if (closeButton) closeButton.addEventListener('click', toggleMenu);
+    if (backdrop) backdrop.addEventListener('click', toggleMenu);
+
+    Router.init();
+    Router.add('#/dashboard', async (container) => {
+      const renderer = this.getDashboardRenderer();
+      if (renderer) {
+        await renderer.call(null, container);
+        return;
+      }
+
+      container.innerHTML = '<p class="text-center text-muted">Role tidak valid.</p>';
+    });
+
+    Auth.init();
+  }
+};
+
 document.addEventListener('DOMContentLoaded', () => {
-  const btnMenuToggle = document.getElementById('btn-menu-toggle'); const btnMenuClose = document.getElementById('btn-menu-close'); const sidebar = document.getElementById('sidebar'); const backdrop = document.getElementById('sidebar-backdrop'); function toggleMenu() { sidebar.classList.toggle('active'); backdrop.classList.toggle('active') }
-  if (btnMenuToggle) btnMenuToggle.addEventListener('click', toggleMenu); if (btnMenuClose) btnMenuClose.addEventListener('click', toggleMenu); if (backdrop) backdrop.addEventListener('click', toggleMenu); Router.init(); Router.add('#/dashboard', async (container) => { const role = Auth.currentRole; if (role === 'admin') { await AdminPages.renderDashboard(container) } else if (role === 'guru') { await GuruPages.renderDashboard(container) } else if (role === 'kepsek') { await KepsekPages.renderDashboard(container) } else if (role === 'ortu') { await OrtuPages.renderDashboard(container) } else { container.innerHTML = '<p class="text-center text-muted">Role tidak valid.</p>' } }); Auth.init()
-}); function generateId() { return Math.random().toString(36).substr(2, 9) }
+  App.init();
+});

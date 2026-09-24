@@ -16,8 +16,8 @@ const AdminPages = {
     const classArr = DB.toArray(classes);
     const charArr = DB.toArray(chars);
     const studentArr = DB.toArray(students);
-    const guruCount = userArr.filter(u => u.role === 'guru').length;
-    const ortuCount = userArr.filter(u => u.role === 'ortu').length;
+    const guruCount = userArr.filter(u => u.role === AppConfig.ROLES.GURU).length;
+    const ortuCount = userArr.filter(u => u.role === AppConfig.ROLES.ORTU).length;
     container.innerHTML = `
       <section class="card-grid" style="margin-bottom:24px">
         <div class="card stat-card">
@@ -211,7 +211,7 @@ const AdminPages = {
     document.getElementById('char-name').value = existing ? existing.name : '';
     document.getElementById('char-order').value = existing ? existing.order : (nextOrder || 1);
     document.getElementById('char-active').value = existing ? String(existing.active !== false) : 'true';
-    document.getElementById('modal-char').classList.add('active');
+    this._openModal('modal-char');
   },
   // ========== MANAJEMEN PENGGUNA ==========
   async renderUsers(container) {
@@ -233,7 +233,7 @@ const AdminPages = {
         <tr>
           <td><strong>${u.name}</strong><br><small class="text-muted">${u.email || '-'}</small></td>
           <td>${u.username}</td>
-          <td><span class="badge ${u.role === 'admin' ? 'badge-primary' : u.role === 'guru' ? 'badge-warning' : u.role === 'kepsek' ? 'badge-success' : 'badge-outline'}">${u.role}</span></td>
+          <td><span class="badge ${AppConfig.getRoleBadgeClass(u.role)}">${u.role}</span></td>
           <td class="action-cell">
             <button class="btn btn-outline btn-sm" data-edit-usr="${u.id}"><i class="ph ph-pencil-simple"></i></button>
             <button class="btn btn-danger btn-sm" data-del-usr="${u.id}"><i class="ph ph-trash"></i></button>
@@ -258,7 +258,7 @@ const AdminPages = {
           document.getElementById('usr-password').placeholder = '(Kosongkan jika tidak diubah)';
           document.getElementById('usr-role').value = u.role;
           document.getElementById('usr-password').removeAttribute('required');
-          document.getElementById('modal-usr').classList.add('active');
+          this._openModal('modal-usr');
         };
       });
       container.querySelectorAll('[data-del-usr]').forEach(btn => {
@@ -336,7 +336,7 @@ const AdminPages = {
       document.getElementById('usr-password').placeholder = '';
       document.getElementById('usr-role').value = 'guru';
       document.getElementById('usr-password').setAttribute('required', 'true');
-      document.getElementById('modal-usr').classList.add('active');
+      this._openModal('modal-usr');
     };
 
     document.getElementById('form-usr').onsubmit = async (e) => {
@@ -373,7 +373,7 @@ const AdminPages = {
       DB.getSubjects()
     ]);
     const classArr = DB.toArray(classes);
-    const guruArr = DB.toArray(users).filter(u => u.role === 'guru');
+    const guruArr = DB.toArray(users).filter(u => u.role === AppConfig.ROLES.GURU);
     const subArr = DB.toArray(subjects).sort((a, b) => (a.order || 0) - (b.order || 0));
     const studentArr = DB.toArray(students);
     const rows = classArr.length ? classArr.map(c => {
@@ -568,7 +568,7 @@ const AdminPages = {
       DB.getAllUsers()
     ]);
     const studentArr = DB.toArray(studentData).sort((a,b) => a.name.localeCompare(b.name));
-    const ortuArr = DB.toArray(users).filter(u => u.role === 'ortu');
+    const ortuArr = DB.toArray(users).filter(u => u.role === AppConfig.ROLES.ORTU);
     
     const renderTable = () => {
       const q = (document.getElementById('search-student')?.value || '').toLowerCase();
@@ -611,7 +611,7 @@ const AdminPages = {
           document.getElementById('stu-name').value = s.name;
           document.getElementById('stu-gender').value = s.gender || 'L';
           document.getElementById('stu-parent').value = s.parentId || '';
-          document.getElementById('modal-stu').classList.add('active');
+          this._openModal('modal-stu');
         };
       });
       container.querySelectorAll('[data-del-stu]').forEach(btn => {
@@ -688,7 +688,7 @@ const AdminPages = {
       document.getElementById('stu-name').value = '';
       document.getElementById('stu-gender').value = 'L';
       document.getElementById('stu-parent').value = '';
-      document.getElementById('modal-stu').classList.add('active');
+      this._openModal('modal-stu');
     };
 
     document.getElementById('form-stu').onsubmit = async (e) => {
@@ -844,7 +844,7 @@ const AdminPages = {
       DB.getExtracurriculars(),
       DB.getAllUsers()
     ]);
-    const guruArr = DB.toArray(users).filter(u => u.role === 'guru');
+    const guruArr = DB.toArray(users).filter(u => u.role === AppConfig.ROLES.GURU);
     const eksArr = DB.toArray(ekskuls).sort((a, b) => (a.order || 0) - (b.order || 0));
     const rows = eksArr.length ? eksArr.map(e => {
       const guru = guruArr.find(g => g.id === e.teacherId);
@@ -950,7 +950,7 @@ const AdminPages = {
     ]);
     const classArr = DB.toArray(classes);
     const studentArr = DB.toArray(students);
-    const teacherArr = DB.toArray(users).filter(u => u.role === 'guru');
+    const teacherArr = DB.toArray(users).filter(u => u.role === AppConfig.ROLES.GURU);
 
     const renderTeacherRows = (dateStr, teacherData, attendanceData) => teacherArr.map(g => {
       const att = attendanceData[g.id] || {};
@@ -1077,8 +1077,14 @@ const AdminPages = {
     await buildTable(defaultDate);
   },
   // ========== HELPERS ==========
+  _openModal(id) {
+    const modal = document.getElementById(id);
+    if (modal) modal.classList.add('active');
+  },
+
   _closeModal(id) {
-    document.getElementById(id).classList.remove('active');
+    const modal = document.getElementById(id);
+    if (modal) modal.classList.remove('active');
   }
 };
 // Route registration

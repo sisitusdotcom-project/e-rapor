@@ -16,10 +16,6 @@ const DriveBridge = {
 
     return url;
   },
-  withCacheBust(url) {
-    if (!url || typeof url !== 'string') return '';
-    return `${url}${url.includes('?') ? '&' : '?'}v=${Date.now()}`;
-  },
   ensureUploadConfig() {
     const uploadUrl = window.GOOGLE_DRIVE_UPLOAD_URL || (window.GOOGLE_DRIVE_CONFIG && window.GOOGLE_DRIVE_CONFIG.uploadUrl) || '';
     if (!uploadUrl) {

@@ -1,22 +1,63 @@
 // db.js — service layer untuk seluruh operasi Firebase RTDB.
 // Setiap fungsi return data langsung (bukan snapshot) supaya caller bersih.
 const DB = {
+  _read(path, fallback = null) {
+    if (!isDBReady()) return Promise.resolve(fallback);
+    return db.ref(path).once('value').then((snap) => snap.val() ?? fallback);
+  },
+
+  _readCollection(path, fallback = {}) {
+    return this._read(path, fallback);
+  },
+
+  _sanitizeUserPayload(data = {}) {
+    const safeData = { ...data };
+    delete safeData.password;
+    return safeData;
+  },
+
+  _currentUserIsAdmin() {
+    return !!(typeof Auth !== 'undefined' && Auth.currentRole === AppConfig.ROLES.ADMIN);
+  },
+
+  async _canManageClass(classId) {
+    if (!classId || typeof Auth === 'undefined' || !Auth.currentUser) return true;
+    if (this._currentUserIsAdmin()) return true;
+
+    const classes = await this.getClasses();
+    const cls = classes[classId] || null;
+    return !!(cls && (cls.teacherId === Auth.currentUser.uid || (cls.subjectTeachers && Object.values(cls.subjectTeachers).includes(Auth.currentUser.uid))));
+  },
+
+  _buildAttendancePayload(data = {}) {
+    const payload = {};
+    if (data.time_in) payload.time_in = data.time_in;
+    if (data.location_in) payload.location_in = data.location_in;
+    if (data.time_out) payload.time_out = data.time_out;
+    if (data.location_out) payload.location_out = data.location_out;
+    if (data.proof_url) payload.proof_url = data.proof_url;
+    if (data.proofUrl) payload.proof_url = data.proofUrl;
+    return payload;
+  },
+
+  _serializeStudentAttendance(data = {}) {
+    const normalized = {};
+    Object.entries(data || {}).forEach(([studentId, status]) => {
+      if (['H', 'S', 'I', 'A'].includes(status)) normalized[studentId] = status;
+    });
+    return normalized;
+  },
+
   // --- USERS ---
   async getUser(uid) {
-    if (!isDBReady()) return null;
-    const snap = await db.ref(`users/${uid}`).once('value');
-    return snap.val();
+    return this._read(`users/${uid}`, null);
   },
   async getAllUsers() {
-    if (!isDBReady()) return {};
-    const snap = await db.ref('users').once('value');
-    return snap.val() || {};
+    return this._readCollection('users', {});
   },
   async saveUser(uid, data) {
     if (!isDBReady()) return;
-    const safeData = { ...data };
-    delete safeData.password;
-    await db.ref(`users/${uid}`).update(safeData);
+    await db.ref(`users/${uid}`).update(this._sanitizeUserPayload(data));
   },
   async saveProfilePhoto(uid, base64Data, mimeType = 'image/jpeg') {
     if (!uid || !base64Data) return null;
@@ -32,10 +73,8 @@ const DB = {
   },
   async createUserInDB(uid, data) {
     if (!isDBReady()) return;
-    const safeData = { ...data };
-    delete safeData.password;
     await db.ref(`users/${uid}`).set({
-      ...safeData,
+      ...this._sanitizeUserPayload(data),
       createdAt: firebase.database.ServerValue.TIMESTAMP
     });
   },
@@ -45,29 +84,12 @@ const DB = {
   },
   // --- SETTINGS (Tahun ajaran & semester) ---
   async getSettings() {
-    const defaultSettings = {
-      currentAcademicYear: '2026/2027',
-      currentSemester: '1',
-      attendanceRules: {
-        checkInStart: '07:00',
-        checkInEnd: '09:00',
-        checkOutStart: '15:00',
-        checkOutEnd: '17:00',
-        attendanceStartDate: '',
-        attendanceEndDate: ''
-      }
-    };
+    const defaultSettings = AppConfig.DEFAULT_SETTINGS;
+
     if (!isDBReady()) return defaultSettings;
     const snap = await db.ref('settings').once('value');
     const current = snap.val() || {};
-    return {
-      ...defaultSettings,
-      ...current,
-      attendanceRules: {
-        ...defaultSettings.attendanceRules,
-        ...(current.attendanceRules || {})
-      }
-    };
+    return AppConfig.normalizeSettings(current);
   },
   async updateSettings(data) {
     if (!isDBReady()) return;
@@ -101,28 +123,19 @@ const DB = {
   },
   // --- TEACHER ATTENDANCE ---
   async getTeacherAttendance(dateStr, teacherId) {
-    if (!isDBReady()) return null;
-    const snap = await db.ref(`teacher_attendance/${dateStr}/${teacherId}`).once('value');
-    return snap.val();
+    return this._read(`teacher_attendance/${dateStr}/${teacherId}`, null);
   },
   async getTeacherAttendanceByDate(dateStr) {
-    if (!isDBReady()) return {};
-    const snap = await db.ref(`teacher_attendance/${dateStr}`).once('value');
-    return snap.val() || {};
+    return this._readCollection(`teacher_attendance/${dateStr}`, {});
   },
   async saveTeacherAttendance(dateStr, teacherId, data) {
     if (!isDBReady()) return;
-    const isAdmin = typeof Auth !== 'undefined' && Auth.currentRole === 'admin';
+    const isAdmin = this._currentUserIsAdmin();
     if (typeof Auth !== 'undefined' && Auth.currentUser && teacherId !== Auth.currentUser.uid && !isAdmin) {
       throw new Error('Anda tidak berwenang mengubah presensi guru lain.');
     }
-    const payload = {};
-    if (data && data.time_in) payload.time_in = data.time_in;
-    if (data && data.location_in) payload.location_in = data.location_in;
-    if (data && data.time_out) payload.time_out = data.time_out;
-    if (data && data.location_out) payload.location_out = data.location_out;
-    if (data && data.proof_url) payload.proof_url = data.proof_url;
-    if (data && data.proofUrl) payload.proof_url = data.proofUrl;
+
+    const payload = this._buildAttendancePayload(data || {});
     if (!Object.keys(payload).length) return;
     await db.ref(`teacher_attendance/${dateStr}/${teacherId}`).update(payload);
   },
@@ -182,30 +195,21 @@ const DB = {
   },
   // --- STUDENT ATTENDANCE (Daily per class) ---
   async getDailyStudentAttendance(dateStr, classId) {
-    if (!isDBReady()) return {};
-    const snap = await db.ref(`student_attendance_daily/${dateStr}/${classId}`).once('value');
-    return snap.val() || {};
+    return this._readCollection(`student_attendance_daily/${dateStr}/${classId}`, {});
   },
   async getDailyStudentAttendanceByDate(dateStr) {
-    if (!isDBReady()) return {};
-    const snap = await db.ref(`student_attendance_daily/${dateStr}`).once('value');
-    return snap.val() || {};
+    return this._readCollection(`student_attendance_daily/${dateStr}`, {});
   },
   async saveDailyStudentAttendance(dateStr, classId, data) {
     if (!isDBReady()) return;
-    const isAdmin = typeof Auth !== 'undefined' && Auth.currentRole === 'admin';
-    if (typeof Auth !== 'undefined' && Auth.currentUser && !isAdmin) {
-      const classes = await this.getClasses();
-      const cls = classes[classId] || null;
-      const isOwner = !!(cls && (cls.teacherId === Auth.currentUser.uid || (cls.subjectTeachers && Object.values(cls.subjectTeachers).includes(Auth.currentUser.uid))));
-      if (!isOwner) {
+    if (typeof Auth !== 'undefined' && Auth.currentUser && !this._currentUserIsAdmin()) {
+      const canManage = await this._canManageClass(classId);
+      if (!canManage) {
         throw new Error('Anda tidak berwenang mengisi absensi kelas ini.');
       }
     }
-    const normalized = {};
-    Object.entries(data || {}).forEach(([studentId, status]) => {
-      if (['H', 'S', 'I', 'A'].includes(status)) normalized[studentId] = status;
-    });
+
+    const normalized = this._serializeStudentAttendance(data);
     if (!Object.keys(normalized).length) return;
     await db.ref(`student_attendance_daily/${dateStr}/${classId}`).update(normalized);
   },
@@ -227,9 +231,7 @@ const DB = {
   },
   // --- CLASSES ---
   async getClasses() {
-    if (!isDBReady()) return {};
-    const snap = await db.ref('classes').once('value');
-    return snap.val() || {};
+    return this._readCollection('classes', {});
   },
   async saveClass(id, data) {
     if (!isDBReady()) return null;
@@ -247,9 +249,7 @@ const DB = {
   },
   // --- STUDENTS ---
   async getAllStudents() {
-    if (!isDBReady()) return {};
-    const snap = await db.ref('students').once('value');
-    return snap.val() || {};
+    return this._readCollection('students', {});
   },
   async getStudentsByClass(classId) {
     if (!isDBReady()) return {};
@@ -262,9 +262,7 @@ const DB = {
     return snap.val() || {};
   },
   async getStudent(id) {
-    if (!isDBReady()) return null;
-    const snap = await db.ref(`students/${id}`).once('value');
-    return snap.val();
+    return this._read(`students/${id}`, null);
   },
   async saveStudent(id, data) {
     if (!isDBReady()) return null;
@@ -282,14 +280,10 @@ const DB = {
     return `assessments/${year.replace('/', '-')}_${sem}`;
   },
   async getAssessments(year, sem, studentId) {
-    if (!isDBReady()) return {};
-    const snap = await db.ref(`${this._assessPath(year, sem)}/${studentId}`).once('value');
-    return snap.val() || {};
+    return this._readCollection(`${this._assessPath(year, sem)}/${studentId}`, {});
   },
   async getAllAssessmentsForPeriod(year, sem) {
-    if (!isDBReady()) return {};
-    const snap = await db.ref(this._assessPath(year, sem)).once('value');
-    return snap.val() || {};
+    return this._readCollection(this._assessPath(year, sem), {});
   },
   async saveAssessment(year, sem, studentId, charId, score, teacherId) {
     if (!isDBReady()) return;
@@ -311,9 +305,7 @@ const DB = {
     return snap.val() || {};
   },
   async getAllObservations() {
-    if (!isDBReady()) return {};
-    const snap = await db.ref('observations').once('value');
-    return snap.val() || {};
+    return this._readCollection('observations', {});
   },
   async saveObservation(data) {
     if (!isDBReady()) return null;
@@ -343,9 +335,7 @@ const DB = {
   },
   // --- EXTRACURRICULARS (Master Data Ekskul) ---
   async getExtracurriculars() {
-    if (!isDBReady()) return {};
-    const snap = await db.ref('extracurriculars').once('value');
-    return snap.val() || {};
+    return this._readCollection('extracurriculars', {});
   },
   async saveExtracurricular(id, data) {
     if (!isDBReady()) return null;
@@ -363,14 +353,10 @@ const DB = {
   },
   // --- ACADEMIC GRADES ---
   async getAcademicGrades(year, sem, studentId) {
-    if (!isDBReady()) return {};
-    const snap = await db.ref(`${this._raporPath('academic_grades', year, sem)}/${studentId}`).once('value');
-    return snap.val() || {};
+    return this._readCollection(`${this._raporPath('academic_grades', year, sem)}/${studentId}`, {});
   },
   async getAllAcademicGrades(year, sem) {
-    if (!isDBReady()) return {};
-    const snap = await db.ref(this._raporPath('academic_grades', year, sem)).once('value');
-    return snap.val() || {};
+    return this._readCollection(this._raporPath('academic_grades', year, sem), {});
   },
   async saveAcademicGrade(year, sem, studentId, subjectId, data) {
     if (!isDBReady()) return;
@@ -381,9 +367,7 @@ const DB = {
   },
   // --- STUDENT EXTRACURRICULARS ---
   async getStudentExtracurriculars(year, sem, studentId) {
-    if (!isDBReady()) return {};
-    const snap = await db.ref(`${this._raporPath('student_extracurriculars', year, sem)}/${studentId}`).once('value');
-    return snap.val() || {};
+    return this._readCollection(`${this._raporPath('student_extracurriculars', year, sem)}/${studentId}`, {});
   },
   async saveStudentExtracurricular(year, sem, studentId, ekskulId, data) {
     if (!isDBReady()) return;
@@ -398,9 +382,7 @@ const DB = {
   },
   // --- COCURRICULARS ---
   async getCocurricular(year, sem, studentId) {
-    if (!isDBReady()) return null;
-    const snap = await db.ref(`${this._raporPath('cocurriculars', year, sem)}/${studentId}`).once('value');
-    return snap.val();
+    return this._read(`${this._raporPath('cocurriculars', year, sem)}/${studentId}`, null);
   },
   async saveCocurricular(year, sem, studentId, data) {
     if (!isDBReady()) return;
@@ -411,9 +393,7 @@ const DB = {
   },
   // --- ATTENDANCES ---
   async getAttendance(year, sem, studentId) {
-    if (!isDBReady()) return null;
-    const snap = await db.ref(`${this._raporPath('attendances', year, sem)}/${studentId}`).once('value');
-    return snap.val();
+    return this._read(`${this._raporPath('attendances', year, sem)}/${studentId}`, null);
   },
   async saveAttendance(year, sem, studentId, data) {
     if (!isDBReady()) return;
@@ -424,9 +404,7 @@ const DB = {
   },
   // --- TEACHER NOTES ---
   async getTeacherNote(year, sem, studentId) {
-    if (!isDBReady()) return null;
-    const snap = await db.ref(`${this._raporPath('teacher_notes', year, sem)}/${studentId}`).once('value');
-    return snap.val();
+    return this._read(`${this._raporPath('teacher_notes', year, sem)}/${studentId}`, null);
   },
   async saveTeacherNote(year, sem, studentId, data) {
     if (!isDBReady()) return;
@@ -437,9 +415,7 @@ const DB = {
   },
   // --- PARENT RESPONSES ---
   async getParentResponse(year, sem, studentId) {
-    if (!isDBReady()) return null;
-    const snap = await db.ref(`${this._raporPath('parent_responses', year, sem)}/${studentId}`).once('value');
-    return snap.val();
+    return this._read(`${this._raporPath('parent_responses', year, sem)}/${studentId}`, null);
   },
   async saveParentResponse(year, sem, studentId, data) {
     if (!isDBReady()) return;
@@ -447,13 +423,10 @@ const DB = {
       ...data,
       updatedAt: firebase.database.ServerValue.TIMESTAMP
     });
-  },
-  // helper: konversi snapshot object jadi array dengan id
-  toArray(obj) {
-    if (!obj) return [];
-    return Object.keys(obj).map(k => ({
-      id: k,
-      ...obj[k]
-    }));
   }
 };
+
+Object.assign(DB, {
+  normalizeSettings: AppConfig.normalizeSettings,
+  toArray: AppConfig.toArray
+});
